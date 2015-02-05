@@ -9,11 +9,12 @@ window.onload = function () {
 	game.playerName = "";
 	game.lives = 3;
 	game.score = 0;
-
+	
+	game.IDLE = 0;	// Estado para manejar el flujo del juego	
 	game.PANEL_LOW_Y = 400 - 64; // Posición en Y del panel cuando es bajo
 	game.PANEL_FADE_TIME = 100; // Tiempo de fade in y out del panel
-	game.PANEL_TEXT_X = 128;
-	game.PANEL_TEXT_Y = 400 - 116;	// Posición en Y del texto de diálogo cuando es bajo
+	game.PANEL_TEXT_X = 24;
+	game.PANEL_TEXT_Y = 400 - 112;	// Posición en Y del texto de diálogo cuando es bajo
 
 
   // Game States
@@ -26,7 +27,7 @@ window.onload = function () {
 
   game.state.start('boot');
 };
-},{"./states/boot":4,"./states/gameover":5,"./states/menu":6,"./states/play":7,"./states/preload":8}],2:[function(require,module,exports){
+},{"./states/boot":5,"./states/gameover":6,"./states/menu":7,"./states/play":8,"./states/preload":9}],2:[function(require,module,exports){
 'use strict';
 
 var Panel = require('./panel');
@@ -43,6 +44,9 @@ var DialogueBox = function(game) {
         alpha: 1
     }, this.game.PANEL_FADE_TIME, Phaser.Easing.Linear.None, true);
 
+    // Indicar si se puede escribir nuevamente
+    this.canContinue = true;
+    this.hasQuestions = false;
 };
 
 DialogueBox.prototype = Object.create(Phaser.Group.prototype);
@@ -52,42 +56,108 @@ DialogueBox.prototype.update = function() {
 
 }
 
-DialogueBox.prototype.addText = function(msg, x, y) {
+DialogueBox.prototype.addText = function(msg, x, y, question1, question2, question3, question4) {
 
-    var msgText = "";
+    if (this.canContinue) {
+        // Indicar que se ha comenzado a escribir
+        this.canContinue = false;
+        this.hasQuestions = false;
+        var msgText = "";
 
-    // Transformar el arreglo de texto en una sola String (msgText)
-    msg.forEach(function(line) {
-        msgText += line + "\n";
-    });
+        // Transformar el arreglo de texto en una sola String (msgText)
+        for (var i = 0; i < msg.length; i++ ) {
+            msgText += msg[i];
+            if (i != msg.length - 1) {
+                msgText += "\n";
+            }
+        }
 
-    // Si ya existe un objeto de texto, eliminarlo (solo puede haber uno a la vez)
-    if (this.text !== undefined)
-        this.text.destroy();
+        console.log(msgText);
 
-    // Una vez que la animación del panel ha finalizado, comenzar a escribir
-    //this.panelFadeIn.onComplete.add(function() {
+        // Si ya existe un objeto de texto, eliminarlo (solo puede haber uno a la vez)
+        if (this.text !== undefined)
+            this.text.destroy();
+        if (this.txtQuestion1 !== undefined)
+            this.txtQuestion1.destroy();
+        if (this.txtQuestion2 !== undefined)
+            this.txtQuestion2.destroy();
+        if (this.txtQuestion3 !== undefined)
+            this.txtQuestion3.destroy();
+        if (this.txtQuestion4 !== undefined)
+            this.txtQuestion4.destroy();
 
-        console.log("Pendiente: Evitar que se pueda pasar de texto antes de que termine de renderizarse el actual");
-
-        // Agregar msgText
         this.text = this.game.add.text(x, y, "", this.game.paragraphFont)
-        this.add(this.text);
 
-        var i = 0;
-        var tempString = ""; // Cadena temporal a la que se le irá agregando letra por letra
-        // Recorrer cada letra del texto
-        this.game.time.events.repeat(0.1, msgText.length, function() {
-            tempString += msgText[i];
-            this.text.setText(tempString);
-            i++;
-        }, this);
-    //}, this);
-       
+        if (question1 !== undefined) {
+            this.hasQuestions = true;
+            this.txtQuestion1 = this.game.add.text(24, 350, question1, this.game.paragraphFont);
+            this.txtQuestion1.visible = false;
+        }
+        if (question2 !== undefined) {
+            this.txtQuestion2 = this.game.add.text(24, 350, question2, this.game.paragraphFont);
+            this.txtQuestion2.visible = false;
+        }
+        if (question3 !== undefined) {
+            this.txtQuestion3 = this.game.add.text(24, 350, question3, this.game.paragraphFont);
+            this.txtQuestion3.visible = false;
+        }
+        if (question4 !== undefined) {
+            this.txtQuestion4 = this.game.add.text(24, 350, question4, this.game.paragraphFont);
+            this.txtQuestion4.visible = false;
+        }
+
+        RenderText(this, msgText);
+
+        // Al finalizar la escritura, se activa el semáforo de que se puede continuar
+        this.writingTimer.timer.onComplete.addOnce(function() {
+
+            // Caso contrario, mostrar opciones
+            if (this.hasQuestions) {
+                if (question1 !== undefined) {
+                    this.txtQuestion1.inputEnabled = true;
+                    this.txtQuestion1.x = this.text.x + 25;
+                    this.txtQuestion1.y = this.text.y + this.text.height;
+                    this.txtQuestion1.visible = true;
+                }
+                if (question2 !== undefined) {
+                    this.txtQuestion2.inputEnabled = true;
+                    this.txtQuestion2.x = this.text.x + 25;
+                    this.txtQuestion2.y = this.text.y + this.text.height + 27;
+                    this.txtQuestion2.visible = true;
+                }
+                if (question3 !== undefined) {
+                    this.txtQuestion3.inputEnabled = true;
+                    this.txtQuestion3.x = this.game.world.centerX;
+                    this.txtQuestion3.y = this.text.y + this.text.height;
+                    this.txtQuestion3.visible = true;
+                }
+                if (question4 !== undefined) {
+                    this.txtQuestion4.inputEnabled = true;
+                    this.txtQuestion4.x = this.game.world.centerX;
+                    this.txtQuestion4.y = this.text.y + this.text.height + 27;
+                    this.txtQuestion4.visible = true;
+                }
+            }
+            this.canContinue = true;
+
+        }, this)
+
+    }
+
 };
 
-
-
+function RenderText(that, msgText) {
+    var i = 0; // Pivot del texto
+    var tempString = ""; // Cadena temporal a la que se le irá agregando letra por letra
+    
+    that.writingTimer = that.game.time.events.repeat(22, msgText.length / 2, function() {
+        tempString += msgText[i];
+        if (i < (msgText.length - 1))
+            tempString += msgText[i+1];
+        this.text.setText(tempString);
+        i+=2;
+    }, that);
+}
 
 module.exports = DialogueBox;
 },{"./panel":3}],3:[function(require,module,exports){
@@ -115,6 +185,52 @@ module.exports = Panel;
 },{}],4:[function(require,module,exports){
 'use strict';
 
+var Player = function(game, x, y, frame) {
+    Phaser.Sprite.call(this, game, x, y, 'player', frame);
+    this.anchor.setTo(0.5, 1);
+
+    this.animations.add('player_walk_up', [37, 36, 37, 38], 10, true);
+    this.animations.add('player_walk_right', [25, 24, 25, 26], 10, true);
+    this.animations.add('player_walk_down', [1, 0, 1, 2], 10, true);
+    this.animations.add('player_walk_left', [13, 12, 13, 14], 10, true);
+
+  	this.animations.play('player_walk_up');
+
+};
+
+Player.prototype = Object.create(Phaser.Sprite.prototype);
+Player.prototype.constructor = Player;
+
+Player.prototype.update = function() {
+
+	if (this.game.input.keyboard.isDown(Phaser.Keyboard.W))
+    {
+        this.y -= 2;
+  		this.animations.play('player_walk_up');
+    }
+    if (this.game.input.keyboard.isDown(Phaser.Keyboard.D))
+    {
+        this.x += 2;
+  		this.animations.play('player_walk_right');
+    }
+    if (this.game.input.keyboard.isDown(Phaser.Keyboard.S))
+    {
+        this.y += 2;
+  		this.animations.play('player_walk_down');
+    }
+    if (this.game.input.keyboard.isDown(Phaser.Keyboard.A))
+    {
+        this.x -= 2;
+  		this.animations.play('player_walk_left');
+
+    }
+    
+};
+
+module.exports = Player;
+},{}],5:[function(require,module,exports){
+'use strict';
+
 // Boot start
 function Boot() {}
 
@@ -140,7 +256,7 @@ Boot.prototype = {
 };
 
 module.exports = Boot;
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 'use strict';
 
 function GameOver() {}
@@ -179,7 +295,7 @@ GameOver.prototype = {
     }
 };
 module.exports = GameOver;
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 'use strict';
 
 function Menu() {}
@@ -229,11 +345,12 @@ Menu.prototype = {
 };
 
 module.exports = Menu;
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 'use strict';
 
 var DialogueBox = require('../prefabs/dialogue-box');
 var Panel = require('../prefabs/panel');
+var Player = require('../prefabs/player');
 
 // Inicio de play
 function Play() {}
@@ -243,7 +360,7 @@ Play.prototype = {
     create: function() {
         // Agregar todas las escenas
         this.game.state.add('rmFirstScene', RmFirstScene);
-        this.game.state.add('rmPlayerRoom', RmPlayerRoom);
+        this.game.state.add('rmFirstScenario', RmFirstScenario);
 
         // Ir a la primera escena: Creación del personaje
         this.goToRoom('rmFirstScene');
@@ -254,32 +371,37 @@ Play.prototype = {
     },
 
     // Agregar cuadro de diálogo
-    createDialogue: function(msg) {
+    createDialogue: function(msg, question1, question2, question3, question4) {
         // Crea el objeto si no existe
         if (this.dialogueBox === undefined) {
             this.dialogueBox = new DialogueBox(this.game);
             this.game.add.existing(this.dialogueBox);
         }
         // Añade texto al objeto
-        this.dialogueBox.addText(msg, this.game.PANEL_TEXT_X, this.game.PANEL_TEXT_Y);
+        if (this.dialogueBox.canContinue) {
+            this.dialogueBox.addText(msg, this.game.PANEL_TEXT_X,
+                this.game.PANEL_TEXT_Y, question1, question2, question3, question4);
+        }
     },
 
     // Destruir cuadro de diálogo
     destroyDialogue: function() {
         // Asegurarse que el objeto esté definido antes de destruirlo
-        if (this.dialogueBox !== undefined) {
-            var fadeOut = this.game.add.tween(this.dialogueBox).to({ // Realizar animación
-                alpha: 0
-            }, this.game.PANEL_FADE_TIME, Phaser.Easing.Linear.None, true);
-            fadeOut.onComplete.add(function() {
-                this.dialogueBox.destroy(); // Destruir el objeto al finalizar la animación
-            }, this);
-        }
+        if (this.dialogueBox !== undefined)
+        // Si se ha terminado de escribir
+            if (this.dialogueBox.canContinue) {
+                var fadeOut = this.game.add.tween(this.dialogueBox).to({ // Realizar animación
+                    alpha: 0
+                }, this.game.PANEL_FADE_TIME, Phaser.Easing.Linear.None, true);
+                fadeOut.onComplete.add(function() {
+                    this.dialogueBox.destroy(); // Destruir el objeto al finalizar la animación
+                }, this);
+            }
     },
 
     // Crear panel
     createPanel: function() {
-        this.game.add.existing(new Panel(this.game, this.game.world.centerX, this.game.height - 64))
+        this.game.add.existing(new Panel(this.game, this.game.world.centerX, this.game.height - 64));
     },
 
     // Ir a un room diferente
@@ -298,49 +420,64 @@ RmFirstScene.prototype = new Play();
 function RmFirstScene() {
 
     this.create = function() {
-        this.iDialogo = 1;
-        this.msg = [
-                        "Jugador:",
-                        "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed",
-                        "do eiusmod tempor incididunt ut labore et dolore magna",
-                        "aliqua. Ut enim ad minim veniam..."
-                    ];
-        this.createDialogue(this.msg);
+        this.state = this.game.IDLE;
+        this.startEvent(1);
+    }
 
-        this.game.input.onDown.add(function() {
-            if (this.iDialogo <= 3) {
-                switch (this.iDialogo) {
-                    case 1:
-                        this.msg = [
-                            "Este es un mensaje de varias líneas. Cuando la",
-                            "ví, me enamoré. Me enamoré como por vez primera.",
-                            "Por ella sí, mi amor se fue",
-                            "No sé por qué pero temblé al verla"
-                        ];
-                        break;
-                    case 2:
-                        this.msg = [
-                            "Me tomó como 18 horas poder programar este puto sistema.",
-                            "jajaja jejeje. ASDMAOSD Sólo falta agregarle el sonido cuando",
-                            "las letras vayan corriendo. Pero eso queda como un extra por si",
-                            "el tiempo alcanza."
-                        ];
-                        break;
-                    case 3:
-                    this.msg = [
-                        "A la izquierda queda espacio para colocar la cara del personaje",
-                        "como en los rpgs clásicos."
-                    ];
+    this.startEvent = function(iDialogue, answer) {
+        switch (iDialogue){
+            case 1:
+                var msg = [
+                    "First and foremost, what's your name?"
+                ];
+                var question1 = "Kevin";
+                var question2 = "Roberto";
+                var question3 = "Rafael Correa";
+                var question4 = "Kim Kardashian";
+                this.createDialogue(msg, question1, question2, question3, question4);
+
+                this.dialogueBox.txtQuestion1.events.onInputDown.addOnce(function() {
+                        this.startEvent(iDialogue + 1, 1);
+                },this);
+                this.dialogueBox.txtQuestion2.events.onInputDown.addOnce(function() {
+                        this.startEvent(iDialogue + 1, 2);
+                },this);
+                this.dialogueBox.txtQuestion3.events.onInputDown.addOnce(function() {
+                        this.startEvent(iDialogue + 1, 3);
+                },this);
+                this.dialogueBox.txtQuestion4.events.onInputDown.addOnce(function() {
+                        this.startEvent(iDialogue + 1, 4);
+                },this);
+            break;
+
+            case 2:
+                switch (answer){
+                    case 1: 
+                        this.createDialogue( ["Option 1 chosen"]);
                     break;
+                    case 2:
+                        this.createDialogue( ["Option 2 chosen"]);
+                    break; 
+                    case 3:
+                        this.createDialogue( ["Option 3 chosen"]);
+                    break; 
+                    case 4:
+                        this.createDialogue( ["Option 4 chosen"]);
+                    break; 
                 }
-                this.iDialogo++;
-                this.createDialogue(this.msg);
-                this.game.lives++;
-            } else {
-                this.destroyDialogue();
-            }
-        }, this);
+                this.game.input.onDown.addOnce(function() {
+                    this.startEvent(iDialogue + 1);
+                }, this);
+            break;
 
+            case 3:
+                this.createDialogue(["Starting game..."]);
+                this.game.input.onDown.addOnce(function() {
+                    this.destroyDialogue();
+                    this.goToRoom('rmFirstScenario');
+                }, this);
+            break;
+        }
     }
 
 }
@@ -349,24 +486,20 @@ function RmFirstScene() {
 // ESCENA: CUARTO DEL PERSONAJE
 ///
 
-RmPlayerRoom.prototype = new Play();
+RmFirstScenario.prototype = new Play();
 
-function RmPlayerRoom() {
+function RmFirstScenario() {
 
     this.create = function() {
-        console.log(lives);
-
-        this.msg = ["Tienes " + this.game.lives + " vidas"];
-
-        this.game.input.onDown.add(function() {
-            this.createDialogue(this.msg);
-        }, this);
+        this.player = new Player(this.game, this.game.world.centerX, this.game.world.centerY);
+        this.game.add.existing(this.player);
+        
     }
 
 }
 
 module.exports = Play;
-},{"../prefabs/dialogue-box":2,"../prefabs/panel":3}],8:[function(require,module,exports){
+},{"../prefabs/dialogue-box":2,"../prefabs/panel":3,"../prefabs/player":4}],9:[function(require,module,exports){
 'use strict';
 
 // Preload start
@@ -385,6 +518,7 @@ Preload.prototype = {
         this.load.setPreloadSprite(this.preloadBar);
 
         // Cargar aquí assets del juego
+        // Imágenes
         this.load.image('logojackal', 'assets/img/logo-jackal.png');  // this = Pickartist
         this.load.image('fondo-mainmenu', 'assets/img/background-mainmenu.png');
         this.load.image('btn-comenzar', 'assets/img/btn-comenzar.png');
@@ -392,12 +526,16 @@ Preload.prototype = {
         this.load.image('btn-creditos', 'assets/img/btn-creditos.png');
         this.load.image('panel', 'assets/img/panel-dialog.png');
 
+        // Spritesheets
+        this.game.load.spritesheet('player', 'assets/img/player1.png', 32, 32);
+
+
         // Llamar al script de Google WebFont Loader. Utiliza la función que se encuentra en utils
         this.game.load.script('webfont', '//ajax.googleapis.com/ajax/libs/webfont/1.4.7/webfont.js');
 
         // Configurar fuente
         this.game.paragraphFont = {
-            font: "16px Molengo",
+            font: "18px Arial",
             fill: "#ffffff",
             align: "left",
         };
