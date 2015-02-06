@@ -18,6 +18,7 @@ window.onload = function () {
 
 
   // Game States
+  game.state.add('battle', require('./states/battle'));
   game.state.add('boot', require('./states/boot'));
   game.state.add('gameover', require('./states/gameover'));
   game.state.add('menu', require('./states/menu'));
@@ -27,7 +28,7 @@ window.onload = function () {
 
   game.state.start('boot');
 };
-},{"./states/boot":5,"./states/gameover":6,"./states/menu":7,"./states/play":8,"./states/preload":9}],2:[function(require,module,exports){
+},{"./states/battle":6,"./states/boot":7,"./states/gameover":8,"./states/menu":9,"./states/play":10,"./states/preload":11}],2:[function(require,module,exports){
 'use strict';
 
 var Panel = require('./panel');
@@ -72,9 +73,7 @@ DialogueBox.prototype.addText = function(msg, x, y, question1, question2, questi
             }
         }
 
-        console.log(msgText);
-
-        // Si ya existe un objeto de texto, eliminarlo (solo puede haber uno a la vez)
+        // Si ya existen objetos del texto, eliminarlos
         if (this.text !== undefined)
             this.text.destroy();
         if (this.txtQuestion1 !== undefined)
@@ -86,6 +85,7 @@ DialogueBox.prototype.addText = function(msg, x, y, question1, question2, questi
         if (this.txtQuestion4 !== undefined)
             this.txtQuestion4.destroy();
 
+        // Agregar texto (vacío al inicio)
         this.text = this.game.add.text(x, y, "", this.game.paragraphFont)
 
         if (question1 !== undefined) {
@@ -111,7 +111,7 @@ DialogueBox.prototype.addText = function(msg, x, y, question1, question2, questi
         // Al finalizar la escritura, se activa el semáforo de que se puede continuar
         this.writingTimer.timer.onComplete.addOnce(function() {
 
-            // Caso contrario, mostrar opciones
+            // Si hay preguntas, mostrarlas
             if (this.hasQuestions) {
                 if (question1 !== undefined) {
                     this.txtQuestion1.inputEnabled = true;
@@ -138,6 +138,7 @@ DialogueBox.prototype.addText = function(msg, x, y, question1, question2, questi
                     this.txtQuestion4.visible = true;
                 }
             }
+            // Finalmente, se puede continuar
             this.canContinue = true;
 
         }, this)
@@ -160,7 +161,45 @@ function RenderText(that, msgText) {
 }
 
 module.exports = DialogueBox;
-},{"./panel":3}],3:[function(require,module,exports){
+},{"./panel":4}],3:[function(require,module,exports){
+'use strict';
+
+var Npc = function(game, x, y, frame) {
+    Phaser.Sprite.call(this, game, x, y, 'player', frame);
+
+    this.anchor.setTo(0.5, 1);
+
+        console.log(this);
+
+};
+
+Npc.prototype = Object.create(Phaser.Sprite.prototype);
+Npc.prototype.constructor = Npc;
+
+Npc.prototype.update = function() {
+
+};
+
+Npc.Guard1 = function(game, x, y, frame) {
+    
+    Phaser.Sprite.call(this, game, x, y, 'player', frame);
+
+        //this.loadTexture('player');
+        console.log(this);
+        // Agregar animaciones de personaje
+	    this.animations.add('guard1_walk_up', [43, 42, 43, 44], 10, true);
+	    this.animations.add('guard1_walk_right', [31, 30, 31, 32], 10, true);
+	    this.animations.add('guard1_walk_down', [7, 6, 7, 8], 10, true);
+	    this.animations.add('guard1_walk_left', [19, 18, 19, 20], 10, true);
+
+	    this.animations.play('guard1_walk_down');
+};
+
+Npc.Guard1.prototype = Object.create(Npc.prototype);
+Npc.Guard1.prototype.constructor = Npc;
+
+module.exports = Npc;
+},{}],4:[function(require,module,exports){
 'use strict';
 
 var Panel = function(game, x, y, frame) {
@@ -182,20 +221,29 @@ Panel.prototype.update = function() {
 };
 
 module.exports = Panel;
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 'use strict';
+
+var upKey;
+var rightKey;
+var downKey;
+var leftKey;
 
 var Player = function(game, x, y, frame) {
     Phaser.Sprite.call(this, game, x, y, 'player', frame);
     this.anchor.setTo(0.5, 1);
 
+    // Agregar animaciones de personaje
     this.animations.add('player_walk_up', [37, 36, 37, 38], 10, true);
     this.animations.add('player_walk_right', [25, 24, 25, 26], 10, true);
     this.animations.add('player_walk_down', [1, 0, 1, 2], 10, true);
     this.animations.add('player_walk_left', [13, 12, 13, 14], 10, true);
 
-  	this.animations.play('player_walk_up');
-
+    // Agregar teclas de dirección
+    upKey = this.game.input.keyboard.addKey(Phaser.Keyboard.W);
+    downKey = this.game.input.keyboard.addKey(Phaser.Keyboard.S);
+    leftKey = this.game.input.keyboard.addKey(Phaser.Keyboard.A);
+    rightKey = this.game.input.keyboard.addKey(Phaser.Keyboard.D);
 };
 
 Player.prototype = Object.create(Phaser.Sprite.prototype);
@@ -203,32 +251,79 @@ Player.prototype.constructor = Player;
 
 Player.prototype.update = function() {
 
-	if (this.game.input.keyboard.isDown(Phaser.Keyboard.W))
+	if (upKey.isDown)
     {
-        this.y -= 2;
-  		this.animations.play('player_walk_up');
+    	if (downKey.isUp && rightKey.isUp && leftKey.isUp) {
+       		this.y -= 2;
+  			this.animations.play('player_walk_up');
+  		} else {
+        	this.y -= 2;
+  		}
     }
-    if (this.game.input.keyboard.isDown(Phaser.Keyboard.D))
+    if (downKey.isDown)
     {
-        this.x += 2;
-  		this.animations.play('player_walk_right');
+    	if (upKey.isUp && rightKey.isUp && leftKey.isUp) {
+        	this.y += 2;
+  			this.animations.play('player_walk_down');
+  		} else {
+        	this.y += 2;
+  		}
     }
-    if (this.game.input.keyboard.isDown(Phaser.Keyboard.S))
+    if (rightKey.isDown)
     {
-        this.y += 2;
-  		this.animations.play('player_walk_down');
+    	if (upKey.isUp && downKey.isUp && leftKey.isUp) {
+        	this.x += 2;
+  			this.animations.play('player_walk_right');
+  		} else {
+        	this.x += 2;
+  		}
     }
-    if (this.game.input.keyboard.isDown(Phaser.Keyboard.A))
+    if (leftKey.isDown)
     {
-        this.x -= 2;
-  		this.animations.play('player_walk_left');
+    	if (upKey.isUp && downKey.isUp && rightKey.isUp) {
+        	this.x -= 2;
+  			this.animations.play('player_walk_left');
+  		} else {
+        	this.x -= 2;
+  		}
+    }
 
+    if (!upKey.isDown && !rightKey.isDown && !downKey.isDown && !leftKey.isDown) {
+    	this.animations.stop(null, true);
     }
     
 };
 
 module.exports = Player;
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
+'use strict';
+
+function Battle() {}
+Battle.prototype = {
+    preload: function() {
+        // Override this method to add some load operations. 
+        // If you need to use the loader, you may need to use them here.
+    },
+    create: function() {
+        // This method is called after the game engine successfully switches states. 
+        // Feel free to add any setup code here (do not load anything here, override preload() instead).
+    },
+    update: function() {
+        // state update code
+    },
+    paused: function() {
+        // This method will be called when game paused.
+    },
+    render: function() {
+        // Put render operations here.
+    },
+    shutdown: function() {
+        // This method will be called when the state is shut down 
+        // (i.e. you switch to another state from this one).
+    }
+};
+module.exports = Battle;
+},{}],7:[function(require,module,exports){
 'use strict';
 
 // Boot start
@@ -256,7 +351,7 @@ Boot.prototype = {
 };
 
 module.exports = Boot;
-},{}],6:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 'use strict';
 
 function GameOver() {}
@@ -295,7 +390,7 @@ GameOver.prototype = {
     }
 };
 module.exports = GameOver;
-},{}],7:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 'use strict';
 
 function Menu() {}
@@ -345,12 +440,13 @@ Menu.prototype = {
 };
 
 module.exports = Menu;
-},{}],8:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 'use strict';
 
 var DialogueBox = require('../prefabs/dialogue-box');
 var Panel = require('../prefabs/panel');
 var Player = require('../prefabs/player');
+var Npc = require('../prefabs/npc');
 
 // Inicio de play
 function Play() {}
@@ -420,7 +516,6 @@ RmFirstScene.prototype = new Play();
 function RmFirstScene() {
 
     this.create = function() {
-        this.state = this.game.IDLE;
         this.startEvent(1);
     }
 
@@ -471,6 +566,61 @@ function RmFirstScene() {
             break;
 
             case 3:
+                var msg = [
+                    "Do yo like pizza?"
+                ];
+                var question1 = "No way";
+                var question2 = "Yes, it is my favorite meal";
+                var question3 = "White power!";
+                var question4 = "ASDSASD";
+                this.createDialogue(msg, question1, question2, question3, question4);
+
+                this.dialogueBox.txtQuestion1.events.onInputDown.addOnce(function() {
+                        this.startEvent(iDialogue + 1, 1);
+                },this);
+                this.dialogueBox.txtQuestion2.events.onInputDown.addOnce(function() {
+                        this.startEvent(iDialogue + 1, 2);
+                },this);
+                this.dialogueBox.txtQuestion3.events.onInputDown.addOnce(function() {
+                        this.startEvent(iDialogue + 1, 3);
+                },this);
+                this.dialogueBox.txtQuestion4.events.onInputDown.addOnce(function() {
+                        this.startEvent(iDialogue + 1, 4);
+                },this);
+            break;
+
+            case 4:
+                switch (answer){
+                    case 1: 
+                        this.createDialogue( ["Option 1 chosen"]);
+                    break;
+                    case 2:
+                        this.createDialogue( ["Option 2 chosen"]);
+                    break; 
+                    case 3:
+                        this.createDialogue( ["Option 3 chosen"]);
+                    break; 
+                    case 4:
+                        this.createDialogue( ["Option 4 chosen"]);
+                    break; 
+                }
+                this.game.input.onDown.addOnce(function() {
+                    this.startEvent(iDialogue + 1);
+                }, this);
+            break;
+
+            case 5:
+                this.createDialogue(["This is a dialogue of several lines... One",
+                            "two, three. This is a dialogue system similar to the ones found in",
+                            "old rpgs. It has letter by letter rendering, and you can choose your",
+                            "answers accordingly."]);
+               
+                this.game.input.onDown.addOnce(function() {
+                    this.startEvent(iDialogue + 1);
+                }, this);
+            break;
+
+            case 6:
                 this.createDialogue(["Starting game..."]);
                 this.game.input.onDown.addOnce(function() {
                     this.destroyDialogue();
@@ -491,15 +641,22 @@ RmFirstScenario.prototype = new Play();
 function RmFirstScenario() {
 
     this.create = function() {
+        this.game.add.sprite(0, 0, 'escena1');
+
         this.player = new Player(this.game, this.game.world.centerX, this.game.world.centerY);
         this.game.add.existing(this.player);
         
+        this.npc = new Npc(this.game, 300, 100);
+        this.game.add.existing(this.npc);
+
+        this.guard1 = new Npc.Guard1(this.game, 200, 100);
+        this.game.add.existing(this.guard1);
     }
 
 }
 
 module.exports = Play;
-},{"../prefabs/dialogue-box":2,"../prefabs/panel":3,"../prefabs/player":4}],9:[function(require,module,exports){
+},{"../prefabs/dialogue-box":2,"../prefabs/npc":3,"../prefabs/panel":4,"../prefabs/player":5}],11:[function(require,module,exports){
 'use strict';
 
 // Preload start
@@ -525,10 +682,10 @@ Preload.prototype = {
         this.load.image('btn-puntajes', 'assets/img/btn-puntajes.png');
         this.load.image('btn-creditos', 'assets/img/btn-creditos.png');
         this.load.image('panel', 'assets/img/panel-dialog.png');
+        this.load.image('escena1', 'assets/img/escena-temp.png');
 
         // Spritesheets
         this.game.load.spritesheet('player', 'assets/img/player1.png', 32, 32);
-
 
         // Llamar al script de Google WebFont Loader. Utiliza la función que se encuentra en utils
         this.game.load.script('webfont', '//ajax.googleapis.com/ajax/libs/webfont/1.4.7/webfont.js');
