@@ -502,7 +502,7 @@ Play.prototype = {
         this.game.state.add('rmFirstScenario', RmFirstScenario);
 
         // Ir a la primera escena: Creación del personaje
-        this.goToRoom('rmFirstScenario');
+        this.goToRoom('rmFirstScene');
     },
 
     update: function() {
@@ -813,7 +813,7 @@ Preload.prototype = {
     update: function() {
         if (!!this.ready) {
             // Iniciar MainMenu
-            this.game.state.start('play');
+            this.game.state.start('menu');
         }
     },
     onLoadComplete: function() {
