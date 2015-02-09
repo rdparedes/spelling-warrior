@@ -9,27 +9,23 @@ window.onload = function () {
 	game.playerName = "";
 	game.lives = 3;
 	game.score = 0;
+
+	// Game States
+	game.state.add('battle', require('./states/battle'));
+	game.state.add('boot', require('./states/boot'));
+	game.state.add('gameover', require('./states/gameover'));
+	game.state.add('menu', require('./states/menu'));
+	game.state.add('play', require('./states/play'));
+	game.state.add('preload', require('./states/preload'));
 	
-	game.IDLE = 0;	// Estado para manejar el flujo del juego	
-	game.PANEL_LOW_Y = 400 - 64; // Posición en Y del panel cuando es bajo
-	game.PANEL_FADE_TIME = 100; // Tiempo de fade in y out del panel
-	game.PANEL_TEXT_X = 24;
-	game.PANEL_TEXT_Y = 400 - 112;	// Posición en Y del texto de diálogo cuando es bajo
 
-
-  // Game States
-  game.state.add('battle', require('./states/battle'));
-  game.state.add('boot', require('./states/boot'));
-  game.state.add('gameover', require('./states/gameover'));
-  game.state.add('menu', require('./states/menu'));
-  game.state.add('play', require('./states/play'));
-  game.state.add('preload', require('./states/preload'));
-  
-
-  game.state.start('boot');
+	game.state.start('boot');
 };
 },{"./states/battle":6,"./states/boot":7,"./states/gameover":8,"./states/menu":9,"./states/play":10,"./states/preload":11}],2:[function(require,module,exports){
 'use strict';
+
+var PANEL_LOW_Y = 400 - 64; // Posición en Y del panel cuando es bajo
+var PANEL_FADE_TIME = 100; // Tiempo de fade in y out del panel
 
 var Panel = require('./panel');
 
@@ -38,12 +34,12 @@ var DialogueBox = function(game) {
     Phaser.Group.call(this, game);
 
     // Panel contenedor de texto
-    this.panel = new Panel(this.game, this.game.world.centerX, this.game.PANEL_LOW_Y);
+    this.panel = new Panel(this.game, this.game.world.centerX, PANEL_LOW_Y);
     this.add(this.panel);
     this.panel.alpha = 0;
     this.panelFadeIn = this.game.add.tween(this.panel).to({
         alpha: 1
-    }, this.game.PANEL_FADE_TIME, Phaser.Easing.Linear.None, true);
+    }, PANEL_FADE_TIME, Phaser.Easing.Linear.None, true);
 
     // Indicar si se puede escribir nuevamente
     this.canContinue = true;
@@ -57,7 +53,7 @@ DialogueBox.prototype.update = function() {
 
 }
 
-DialogueBox.prototype.addText = function(msg, x, y, question1, question2, question3, question4) {
+DialogueBox.prototype.addText = function(msg, question1, question2, question3, question4) {
 
     if (this.canContinue) {
         // Indicar que se ha comenzado a escribir
@@ -65,76 +61,74 @@ DialogueBox.prototype.addText = function(msg, x, y, question1, question2, questi
         this.hasQuestions = false;
         var msgText = "";
 
-        // Transformar el arreglo de texto en una sola String (msgText)
-        for (var i = 0; i < msg.length; i++ ) {
-            msgText += msg[i];
-            if (i != msg.length - 1) {
-                msgText += "\n";
-            }
-        }
-
         // Si ya existen objetos del texto, eliminarlos
         if (this.text !== undefined)
             this.text.destroy();
-        if (this.txtQuestion1 !== undefined)
-            this.txtQuestion1.destroy();
-        if (this.txtQuestion2 !== undefined)
-            this.txtQuestion2.destroy();
-        if (this.txtQuestion3 !== undefined)
-            this.txtQuestion3.destroy();
-        if (this.txtQuestion4 !== undefined)
-            this.txtQuestion4.destroy();
 
         // Agregar texto (vacío al inicio)
-        this.text = this.game.add.text(x, y, "", this.game.paragraphFont)
+        this.text = this.game.add.group();
+        this.add(this.text);
+        var textX = this.panel.x - this.panel.width / 2 + 42;
+        var textY = this.panel.y - this.panel.height / 2 + 12; // Posición de la línea inicial
+        var lineHeight = 24; // Espacio entre líneas
+
+        // Crear un text por cada línea de diálogo
+        for (var i = 0; i < msg.length; i++) {
+            this["text" + i] = this.game.add.text(textX, textY, "", this.game.paragraphFont, this.text);
+            this["text" + i].setShadow(0.5, 0.5, '#111', 2);
+            textY += lineHeight;
+        }
 
         if (question1 !== undefined) {
             this.hasQuestions = true;
             this.txtQuestion1 = this.game.add.text(24, 350, question1, this.game.paragraphFont);
             this.txtQuestion1.visible = false;
+            this.text.add(this.txtQuestion1);
         }
         if (question2 !== undefined) {
             this.txtQuestion2 = this.game.add.text(24, 350, question2, this.game.paragraphFont);
             this.txtQuestion2.visible = false;
+            this.text.add(this.txtQuestion2);
         }
         if (question3 !== undefined) {
             this.txtQuestion3 = this.game.add.text(24, 350, question3, this.game.paragraphFont);
             this.txtQuestion3.visible = false;
+            this.text.add(this.txtQuestion3);
         }
         if (question4 !== undefined) {
             this.txtQuestion4 = this.game.add.text(24, 350, question4, this.game.paragraphFont);
             this.txtQuestion4.visible = false;
+            this.text.add(this.txtQuestion4);
         }
 
-        RenderText(this, msgText);
+        RenderText(this, msg);
 
         // Al finalizar la escritura, se activa el semáforo de que se puede continuar
         this.writingTimer.timer.onComplete.addOnce(function() {
-
             // Si hay preguntas, mostrarlas
             if (this.hasQuestions) {
                 if (question1 !== undefined) {
                     this.txtQuestion1.inputEnabled = true;
-                    this.txtQuestion1.x = this.text.x + 25;
-                    this.txtQuestion1.y = this.text.y + this.text.height;
+                    this.txtQuestion1.x = textX + 25;
+                    this.txtQuestion1.y = textY + 10;
                     this.txtQuestion1.visible = true;
                 }
                 if (question2 !== undefined) {
                     this.txtQuestion2.inputEnabled = true;
-                    this.txtQuestion2.x = this.text.x + 25;
-                    this.txtQuestion2.y = this.text.y + this.text.height + 27;
+                    this.txtQuestion2.x = textX + 25;
+                    this.txtQuestion2.y = textY + 37;
                     this.txtQuestion2.visible = true;
                 }
                 if (question3 !== undefined) {
                     this.txtQuestion3.inputEnabled = true;
                     this.txtQuestion3.x = this.game.world.centerX;
-                    this.txtQuestion3.y = this.text.y + this.text.height;
+                    this.txtQuestion3.y = textY + 10;
                     this.txtQuestion3.visible = true;
                 }
                 if (question4 !== undefined) {
                     this.txtQuestion4.inputEnabled = true;
                     this.txtQuestion4.x = this.game.world.centerX;
-                    this.txtQuestion4.y = this.text.y + this.text.height + 27;
+                    this.txtQuestion4.y = textY + 37;
                     this.txtQuestion4.visible = true;
                 }
             }
@@ -147,16 +141,28 @@ DialogueBox.prototype.addText = function(msg, x, y, question1, question2, questi
 
 };
 
-function RenderText(that, msgText) {
-    var i = 0; // Pivot del texto
+// Recibir un grupo de líneas de texto, y agregarles lo contenido en msg
+function RenderText(that, msg) {
+    var i = 0; // Pivot del elemento
+    var j = 0; // Pivot del texto
     var tempString = ""; // Cadena temporal a la que se le irá agregando letra por letra
-    
-    that.writingTimer = that.game.time.events.repeat(22, msgText.length / 2, function() {
-        tempString += msgText[i];
-        if (i < (msgText.length - 1))
-            tempString += msgText[i+1];
-        this.text.setText(tempString);
-        i+=2;
+    var totalLength = 0; // Largo total de todo el texto
+
+    msg.forEach(function(item) {
+        totalLength += item.length;
+    });
+
+    that.writingTimer = that.game.time.events.repeat(22, totalLength / 2, function() {
+        tempString += msg[i][j];
+        if (j < (msg[i].length - 1))
+            tempString += msg[i][j + 1];
+        this.text.children[i].setText(tempString);
+        j += 2;
+        if (j >= (msg[i].length)) {
+            i++;
+            j = 0;
+            tempString = "";
+        }
     }, that);
 }
 
@@ -169,30 +175,48 @@ var Npc = function(game, x, y, frame) {
 
     this.anchor.setTo(0.5, 1);
 
-        console.log(this);
+    // Activar el click en este objeto
+    this.inputEnabled = true;
+
+    // Poner una animación por defecto en player
+    this.animations.add('idle', [1]);
+    this.animations.play('idle');
+
+    // Activar física en este objeto
+    this.game.physics.arcade.enableBody(this);
+
+    // Settings
+    this.body.setSize(26, 28);
+    this.body.allowGravity = false;
+    this.body.collideWorldBounds = true;
+    this.body.immovable = true;
+
+    this.smoothed = false;
+
+    // Diálogo del NPC
+    this.dialogue = "Hey...";
 
 };
 
 Npc.prototype = Object.create(Phaser.Sprite.prototype);
 Npc.prototype.constructor = Npc;
 
-Npc.prototype.update = function() {
+Npc.prototype.update = function() {};
 
-};
-
+// NPC Guard 1
 Npc.Guard1 = function(game, x, y, frame) {
-    
-    Phaser.Sprite.call(this, game, x, y, 'player', frame);
 
-        //this.loadTexture('player');
-        console.log(this);
-        // Agregar animaciones de personaje
-	    this.animations.add('guard1_walk_up', [43, 42, 43, 44], 10, true);
-	    this.animations.add('guard1_walk_right', [31, 30, 31, 32], 10, true);
-	    this.animations.add('guard1_walk_down', [7, 6, 7, 8], 10, true);
-	    this.animations.add('guard1_walk_left', [19, 18, 19, 20], 10, true);
+    Npc.call(this, game, x, y, 'player', frame);
 
-	    this.animations.play('guard1_walk_down');
+    // Agregar animaciones de personaje
+    this.animations.add('guard1_walk_up', [43, 42, 43, 44], 10, true);
+    this.animations.add('guard1_walk_right', [31, 30, 31, 32], 10, true);
+    this.animations.add('guard1_walk_down', [7, 6, 7, 8], 10, true);
+    this.animations.add('guard1_walk_left', [19, 18, 19, 20], 10, true);
+
+    this.animations.play('guard1_walk_down');
+    this.animations.stop();
+
 };
 
 Npc.Guard1.prototype = Object.create(Npc.prototype);
@@ -228,6 +252,7 @@ var upKey;
 var rightKey;
 var downKey;
 var leftKey;
+var walkSpeed = 120;
 
 var Player = function(game, x, y, frame) {
     Phaser.Sprite.call(this, game, x, y, 'player', frame);
@@ -244,6 +269,16 @@ var Player = function(game, x, y, frame) {
     downKey = this.game.input.keyboard.addKey(Phaser.Keyboard.S);
     leftKey = this.game.input.keyboard.addKey(Phaser.Keyboard.A);
     rightKey = this.game.input.keyboard.addKey(Phaser.Keyboard.D);
+
+    // Activar física en este objeto
+    this.game.physics.arcade.enableBody(this);
+    // Settings
+    this.body.setSize(26, 28);
+    this.body.allowGravity = false;
+    this.body.collideWorldBounds = true;
+
+    this.smoothed = false;
+        
 };
 
 Player.prototype = Object.create(Phaser.Sprite.prototype);
@@ -251,47 +286,47 @@ Player.prototype.constructor = Player;
 
 Player.prototype.update = function() {
 
-	if (upKey.isDown)
-    {
-    	if (downKey.isUp && rightKey.isUp && leftKey.isUp) {
-       		this.y -= 2;
-  			this.animations.play('player_walk_up');
-  		} else {
-        	this.y -= 2;
-  		}
+    this.body.velocity.x = 0;
+    this.body.velocity.y = 0;
+
+    if (upKey.isDown) {
+        if (downKey.isUp && rightKey.isUp && leftKey.isUp) {
+            this.body.velocity.y = -walkSpeed;
+            this.animations.play('player_walk_up');
+        } else {
+            this.body.velocity.y = -walkSpeed;
+        }
     }
-    if (downKey.isDown)
-    {
-    	if (upKey.isUp && rightKey.isUp && leftKey.isUp) {
-        	this.y += 2;
-  			this.animations.play('player_walk_down');
-  		} else {
-        	this.y += 2;
-  		}
+    if (downKey.isDown) {
+        if (upKey.isUp && rightKey.isUp && leftKey.isUp) {
+            this.body.velocity.y = walkSpeed;
+            this.animations.play('player_walk_down');
+        } else {
+            this.body.velocity.y = walkSpeed;
+
+        }
     }
-    if (rightKey.isDown)
-    {
-    	if (upKey.isUp && downKey.isUp && leftKey.isUp) {
-        	this.x += 2;
-  			this.animations.play('player_walk_right');
-  		} else {
-        	this.x += 2;
-  		}
+    if (rightKey.isDown) {
+        if (upKey.isUp && downKey.isUp && leftKey.isUp) {
+            this.body.velocity.x = walkSpeed;
+            this.animations.play('player_walk_right');
+        } else {
+            this.body.velocity.x = walkSpeed;
+        }
     }
-    if (leftKey.isDown)
-    {
-    	if (upKey.isUp && downKey.isUp && rightKey.isUp) {
-        	this.x -= 2;
-  			this.animations.play('player_walk_left');
-  		} else {
-        	this.x -= 2;
-  		}
+    if (leftKey.isDown) {
+        if (upKey.isUp && downKey.isUp && rightKey.isUp) {
+            this.body.velocity.x = -walkSpeed;
+            this.animations.play('player_walk_left');
+        } else {
+            this.body.velocity.x = -walkSpeed;
+        }
     }
 
     if (!upKey.isDown && !rightKey.isDown && !downKey.isDown && !leftKey.isDown) {
-    	this.animations.stop(null, true);
+        this.animations.stop(null, true);
     }
-    
+
 };
 
 module.exports = Player;
@@ -448,18 +483,26 @@ var Panel = require('../prefabs/panel');
 var Player = require('../prefabs/player');
 var Npc = require('../prefabs/npc');
 
+var PANEL_FADE_TIME = 100; 
+
 // Inicio de play
 function Play() {}
 
 Play.prototype = {
 
     create: function() {
+        // Set bounds
+        this.game.world.setBounds(0, 0, 600, 400);
+
+        // Iniciar el sistema de física y poner la gravedad en 0
+        this.game.physics.startSystem(Phaser.Physics.ARCADE);
+
         // Agregar todas las escenas
         this.game.state.add('rmFirstScene', RmFirstScene);
         this.game.state.add('rmFirstScenario', RmFirstScenario);
 
         // Ir a la primera escena: Creación del personaje
-        this.goToRoom('rmFirstScene');
+        this.goToRoom('rmFirstScenario');
     },
 
     update: function() {
@@ -475,8 +518,7 @@ Play.prototype = {
         }
         // Añade texto al objeto
         if (this.dialogueBox.canContinue) {
-            this.dialogueBox.addText(msg, this.game.PANEL_TEXT_X,
-                this.game.PANEL_TEXT_Y, question1, question2, question3, question4);
+            this.dialogueBox.addText(msg, question1, question2, question3, question4);
         }
     },
 
@@ -488,9 +530,10 @@ Play.prototype = {
             if (this.dialogueBox.canContinue) {
                 var fadeOut = this.game.add.tween(this.dialogueBox).to({ // Realizar animación
                     alpha: 0
-                }, this.game.PANEL_FADE_TIME, Phaser.Easing.Linear.None, true);
+                }, PANEL_FADE_TIME, Phaser.Easing.Linear.None, true);
                 fadeOut.onComplete.add(function() {
-                    this.dialogueBox.destroy(); // Destruir el objeto al finalizar la animación
+                    this.dialogueBox.destroy(true); // Destruir el objeto al finalizar la animación
+                    console.log(this.dialogueBox);
                 }, this);
             }
     },
@@ -567,7 +610,7 @@ function RmFirstScene() {
 
             case 3:
                 var msg = [
-                    "Do yo like pizza?"
+                    "Do you like pizza?"
                 ];
                 var question1 = "No way";
                 var question2 = "Yes, it is my favorite meal";
@@ -641,16 +684,80 @@ RmFirstScenario.prototype = new Play();
 function RmFirstScenario() {
 
     this.create = function() {
+        // Background
         this.game.add.sprite(0, 0, 'escena1');
 
+        // Creamos el jugador
         this.player = new Player(this.game, this.game.world.centerX, this.game.world.centerY);
         this.game.add.existing(this.player);
-        
-        this.npc = new Npc(this.game, 300, 100);
-        this.game.add.existing(this.npc);
 
-        this.guard1 = new Npc.Guard1(this.game, 200, 100);
-        this.game.add.existing(this.guard1);
+        // Grupo que contendrá todos los Npcs
+        this.NPCs = this.game.add.group();
+
+        // Crear los npcs
+        this.guard1 = new Npc.Guard1(this.game, 200, this.game.world.centerY);
+        this.NPCs.add(this.guard1);
+        this.guard1.events.onInputDown.add(function() {
+                this.guard1Dialogue(1);
+            },this);
+
+    }
+
+    this.update = function() {
+         // object1, object2, collideCallback, processCallback, callbackContext
+        this.game.physics.arcade.collide(this.player, this.NPCs, function(obj1, obj2) {
+            obj2.body.velocity.x = 0;
+            obj2.body.velocity.y = 0;
+         } , null, this);
+    }
+
+    this.render = function() {
+        
+    }
+
+    this.guard1Dialogue = function(iDialogue, answer) {
+        switch (iDialogue){
+            case 1:
+                var msg = [
+                    "Hello, my name is Hob, I'm a guard from the old",
+                    "Empire days. I'm totally screwed now."
+                ];
+
+                this.createDialogue(msg);
+                this.game.input.onDown.addOnce(function() {
+                    this.guard1Dialogue(iDialogue + 1);
+                }, this);
+            break;
+
+            case 2:
+                var msg = [
+                    "So you wanna fight nigga?"
+                ];
+                var question1 = "Yes";
+                var question2 = "No";
+
+                this.createDialogue(msg, question1, question2);
+
+                this.dialogueBox.txtQuestion1.events.onInputDown.addOnce(function() {
+                        this.guard1Dialogue(iDialogue + 1, 1);
+                },this);
+                this.dialogueBox.txtQuestion2.events.onInputDown.addOnce(function() {
+                        this.destroyDialogue();
+                },this);
+            break;
+
+            case 3:
+                switch (answer) {
+                    case 1:
+                        // go to fight
+                    break;
+
+                    case 2:
+                        
+                    break;
+                }
+            break;
+        }
     }
 
 }
@@ -692,9 +799,11 @@ Preload.prototype = {
 
         // Configurar fuente
         this.game.paragraphFont = {
-            font: "18px Arial",
+            font: "19px Molengo",
             fill: "#ffffff",
             align: "left",
+            stroke: "black",
+            strokeThickness: 1
         };
 
     },
@@ -704,7 +813,7 @@ Preload.prototype = {
     update: function() {
         if (!!this.ready) {
             // Iniciar MainMenu
-            this.game.state.start('menu');
+            this.game.state.start('play');
         }
     },
     onLoadComplete: function() {

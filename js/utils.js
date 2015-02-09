@@ -31,10 +31,6 @@ function GoFullScreen() {
             fsCanvas.mozRequestFullScreen();
         else if (fsCanvas.msRequestFullscreen)
             fsCanvas.msRequestFullscreen();
-
-        game.scale.startFullScreen(false);
-    } else {
-        game.scale.stopFullScreen();
-    }
+    } 
     
 }
