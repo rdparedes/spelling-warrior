@@ -6,7 +6,7 @@ window.onload = function () {
   	var game = new Phaser.Game(600, 400, Phaser.AUTO, 'pickup-artist');
 
 	// Variables globales
-	game.playerName = "Will";
+	game.playerName = "";
 	game.lives = 3;
 	game.score = 0;
 
@@ -21,60 +21,7 @@ window.onload = function () {
 
 	game.state.start('boot');
 };
-},{"./states/battle":8,"./states/boot":9,"./states/gameover":10,"./states/menu":11,"./states/play":12,"./states/preload":13}],2:[function(require,module,exports){
-'use strict';
-
-var BattleEnemy = function(game, x, y, enemyType) {
-
-	switch (enemyType) {
-		case 'skeleton':
-    		Phaser.Sprite.call(this, game, x, y, 'skeleton');
-		break;
-		default:
-    		Phaser.Sprite.call(this, game, x, y, 'skeleton');
-		break;
-	}
-
-	this.anchor.setTo(0.5, 1);
-    this.smoothed = false;
-};
-
-BattleEnemy.prototype = Object.create(Phaser.Sprite.prototype);
-BattleEnemy.prototype.constructor = BattleEnemy;
-
-BattleEnemy.prototype.update = function() {
-
-    // write your prefab's specific update code here
-
-};
-
-module.exports = BattleEnemy;
-},{}],3:[function(require,module,exports){
-'use strict';
-
-var BattlePlayer = function(game, x, y, frame) {
-  Phaser.Sprite.call(this, game, x, y, 'heroe-batalla', frame);
-  this.anchor.setTo(0.5, 1);
-
-    this.animations.add('player_idle', [0, 1, 2, 3], 8, true);
-
-    // Animación por defecto
-    this.animations.play('player_idle');
-  
-};
-
-BattlePlayer.prototype = Object.create(Phaser.Sprite.prototype);
-BattlePlayer.prototype.constructor = BattlePlayer;
-
-BattlePlayer.prototype.update = function() {
-  
-  // write your prefab's specific update code here
-  
-};
-
-module.exports = BattlePlayer;
-
-},{}],4:[function(require,module,exports){
+},{"./states/battle":6,"./states/boot":7,"./states/gameover":8,"./states/menu":9,"./states/play":10,"./states/preload":11}],2:[function(require,module,exports){
 'use strict';
 
 var PANEL_LOW_Y = 400 - 76; // Posición en Y del panel cuando es bajo
@@ -220,7 +167,7 @@ function RenderText(that, msg) {
 }
 
 module.exports = DialogueBox;
-},{"./panel":6}],5:[function(require,module,exports){
+},{"./panel":4}],3:[function(require,module,exports){
 'use strict';
 
 var Npc = function(game, x, y, frame) {
@@ -276,7 +223,7 @@ Npc.Guard1.prototype = Object.create(Npc.prototype);
 Npc.Guard1.prototype.constructor = Npc;
 
 module.exports = Npc;
-},{}],6:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 'use strict';
 
 var Panel = function(game, x, y, frame) {
@@ -298,7 +245,7 @@ Panel.prototype.update = function() {
 };
 
 module.exports = Panel;
-},{}],7:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 'use strict';
 
 var upKey;
@@ -308,7 +255,7 @@ var leftKey;
 var walkSpeed = 120;
 
 var Player = function(game, x, y, frame) {
-    Phaser.Sprite.call(this, game, x, y, 'heroe', frame);
+    Phaser.Sprite.call(this, game, x, y, 'player', frame);
     this.anchor.setTo(0.5, 1);
 
     // Vars
@@ -390,14 +337,10 @@ Player.prototype.update = function() {
 };
 
 module.exports = Player;
-},{}],8:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 'use strict';
 
-var BattlePlayer = require('../prefabs/battle-player');
-var BattleEnemy = require('../prefabs/battle-enemy');
-
 function Battle() {}
-
 Battle.prototype = {
     preload: function() {
         // Override this method to add some load operations. 
@@ -406,88 +349,7 @@ Battle.prototype = {
     create: function() {
         // Cargar fondo de batalla
         this.battleBack = this.game.add.sprite(0, 0, 'battle-grass');
-
-        // Cargar UI
-        this.panelTop = this.game.add.sprite(0, 0, 'panel-top');
-        this.panelBottom = this.game.add.sprite(
-            this.game.world.width - this.game.cache.getImage('panel-bottom').width + 2,
-            this.game.world.height - this.game.cache.getImage('panel-bottom').height,
-            'panel-bottom');
-        // Panel de estado de jugador
-        this.battleStatus = this.game.add.group();
-        this.battleStatus.Pane = this.game.add.sprite(
-            0,
-            this.game.world.height - this.game.cache.getImage('panel-battlestatus').height,
-            'panel-battlestatus');
-        this.battleStatus.add(this.battleStatus.Pane);
-        this.battleStatus.playerName = this.game.add.text(
-            this.battleStatus.Pane.x + 80, 
-            this.battleStatus.Pane.y + 15, 
-            this.game.playerName, 
-            this.game.paragraphFont, 
-            this.battlestatus);
-
-
-        // Cargar Jugador
-        this.battlePlayer = new BattlePlayer(this.game, this.game.world.width - 150, 240);
-        this.game.add.existing(this.battlePlayer);
-
-        // Cargar Enemigos
-        this.enemies = [];
-        this.loadEnemies(this.enemies, 'skeleton', 4);
     },
-
-    // Carga enemigos en pantalla y los alinea (máximo = 4)
-    loadEnemies: function(enemiesArray, type, quantity) {
-        // Punto inicial de enemigos
-        var x = 150;
-        var y = 245;
-        var yDistance = 35;
-
-        for (var i = 0; i < quantity; i++) {
-            enemiesArray.push(this.game.add.existing(new BattleEnemy(this.game, 0, 0, type)));
-        }
-
-        console.log(this);
-        // Alinear enemigos
-        if (this.enemies.length == 1) {
-            enemiesArray[0].x = x;
-            enemiesArray[0].y = y;
-        } else {
-            // GRID:
-            // Enemigo 0 = enemigo de atrás
-            // Enemigo 1 = enemigo del medio arriba
-            // Enemigo 2 = enemigo del medio abajo
-            // Enemigo 3 = enemigo de adelante
-            switch (this.enemies.length) {
-                case 2:
-                    enemiesArray[0].x = x - enemiesArray[0].width * 0.75;
-                    enemiesArray[0].y = y + yDistance;
-                    enemiesArray[1].x = x + enemiesArray[1].width * 0.75;
-                    enemiesArray[1].y = y - yDistance;
-                    break;
-                case 3:
-                    enemiesArray[0].x = x - enemiesArray[0].width * 0.75;
-                    enemiesArray[0].y = y;
-                    enemiesArray[1].x = x + enemiesArray[1].width * 1.25;
-                    enemiesArray[1].y = y - yDistance;
-                    enemiesArray[2].x = x + enemiesArray[1].width * 0.75;
-                    enemiesArray[2].y = y + yDistance;
-                    break;
-                case 4:
-                    enemiesArray[0].x = x - enemiesArray[0].width * 0.75;
-                    enemiesArray[0].y = y;
-                    enemiesArray[1].x = x + enemiesArray[1].width * 1.25;
-                    enemiesArray[1].y = y - yDistance;
-                    enemiesArray[2].x = x + enemiesArray[1].width * 0.75;
-                    enemiesArray[2].y = y + yDistance;
-                    enemiesArray[3].x = x + enemiesArray[1].width * 2.5;
-                    enemiesArray[3].y = y;
-                    break;
-            }
-        }
-    },
-
     update: function() {
         // state update code
     },
@@ -503,7 +365,7 @@ Battle.prototype = {
     }
 };
 module.exports = Battle;
-},{"../prefabs/battle-enemy":2,"../prefabs/battle-player":3}],9:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 'use strict';
 
 // Boot start
@@ -531,7 +393,7 @@ Boot.prototype = {
 };
 
 module.exports = Boot;
-},{}],10:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 'use strict';
 
 function GameOver() {}
@@ -570,7 +432,7 @@ GameOver.prototype = {
     }
 };
 module.exports = GameOver;
-},{}],11:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 'use strict';
 
 function Menu() {}
@@ -620,7 +482,7 @@ Menu.prototype = {
 };
 
 module.exports = Menu;
-},{}],12:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 'use strict';
 
 var DialogueBox = require('../prefabs/dialogue-box');
@@ -647,7 +509,7 @@ Play.prototype = {
         this.game.state.add('rmFirstScenario', RmFirstScenario);
 
         // Ir a la primera escena: Creación del personaje
-        this.goToRoom('rmFirstScene');
+        this.goToRoom('rmFirstScenario');
     },
 
     update: function() {
@@ -899,7 +761,7 @@ function RmFirstScenario() {
 }
 
 module.exports = Play;
-},{"../prefabs/dialogue-box":4,"../prefabs/npc":5,"../prefabs/panel":6,"../prefabs/player":7}],13:[function(require,module,exports){
+},{"../prefabs/dialogue-box":2,"../prefabs/npc":3,"../prefabs/panel":4,"../prefabs/player":5}],11:[function(require,module,exports){
 'use strict';
 
 // Preload start
@@ -925,20 +787,10 @@ Preload.prototype = {
         this.load.image('btn-puntajes', 'assets/img/btn-puntajes.png');
         this.load.image('btn-creditos', 'assets/img/btn-creditos.png');
         this.load.image('panel', 'assets/img/panel-dialog.png');
-        this.load.image('panel-top', 'assets/img/ui-paneltop.png');
-        this.load.image('panel-bottom', 'assets/img/ui-panelbottom.png');
-        this.load.image('panel-battlestatus', 'assets/img/ui-panelbottom2.png');
-        this.load.image('panel-hpcontainer', 'assets/img/ui-hpcontainer.png');
-
-        // Sprites
-        this.load.image('skeleton', 'assets/img/skeleton.png');
-
         // Tilesets
         this.load.image('escena1', 'assets/img/escena-temp.png');
         // Spritesheets
         this.game.load.spritesheet('player', 'assets/img/player1.png', 32, 32);
-        this.game.load.spritesheet('heroe', 'assets/img/heroe01.png', 32, 32);
-        this.game.load.spritesheet('heroe-batalla', 'assets/img/heroe01-batalla.png', 96, 96);
         // Fondos
         this.load.image('battle-grass', 'assets/img/battleback-1.png');
 
@@ -961,7 +813,7 @@ Preload.prototype = {
     update: function() {
         if (!!this.ready) {
             // Iniciar MainMenu
-            this.game.state.start('menu');
+            this.game.state.start('play');
         }
     },
     onLoadComplete: function() {
