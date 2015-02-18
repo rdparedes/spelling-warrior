@@ -6,9 +6,18 @@ window.onload = function () {
   	var game = new Phaser.Game(600, 400, Phaser.AUTO, 'pickup-artist');
 
 	// Variables globales
-	game.playerName = "Will";
-	game.lives = 3;
-	game.score = 0;
+	game.player = {
+		name: 'Will',
+		level: 1,
+		score: 0,
+		stats: 
+		{
+			maxHp: 67,
+			hp: 67,
+			attack: 7,
+			speed: 5,
+		}
+	};
 
 	// Game States
 	game.state.add('battle', require('./states/battle'));
@@ -21,22 +30,35 @@ window.onload = function () {
 
 	game.state.start('boot');
 };
-},{"./states/battle":8,"./states/boot":9,"./states/gameover":10,"./states/menu":11,"./states/play":12,"./states/preload":13}],2:[function(require,module,exports){
+},{"./states/battle":9,"./states/boot":10,"./states/gameover":11,"./states/menu":12,"./states/play":13,"./states/preload":14}],2:[function(require,module,exports){
 'use strict';
 
 var BattleEnemy = function(game, x, y, enemyType) {
 
-	switch (enemyType) {
-		case 'skeleton':
-    		Phaser.Sprite.call(this, game, x, y, 'skeleton');
-		break;
-		default:
-    		Phaser.Sprite.call(this, game, x, y, 'skeleton');
-		break;
-	}
+    switch (enemyType) {
+        case 'skeleton':
+            Phaser.Sprite.call(this, game, x, y, 'skeleton');
+            // Stats del enemigo
+            this.stats = {
+                maxHp: 12,
+                hp: 12,
+                attack: 3,
+                speed: 3,
+            }
+            break;
+    }
 
-	this.anchor.setTo(0.5, 1);
+    this.anchor.setTo(0.5, 1);
     this.smoothed = false;
+
+    this.turn = false;
+
+    this.battleTimer = this.game.time.create(false);
+    this.battleTimer.loop(this.stats.speed * 1500 + Math.floor(Math.random() * 250) + 1,
+        function() {
+            this.turn = true
+            console.log(this + " ataca");
+        }, this);
 };
 
 BattleEnemy.prototype = Object.create(Phaser.Sprite.prototype);
@@ -44,7 +66,9 @@ BattleEnemy.prototype.constructor = BattleEnemy;
 
 BattleEnemy.prototype.update = function() {
 
-    // write your prefab's specific update code here
+};
+
+BattleEnemy.prototype.attack = function() {
 
 };
 
@@ -77,22 +101,44 @@ module.exports = BattlePlayer;
 },{}],4:[function(require,module,exports){
 'use strict';
 
-var PANEL_LOW_Y = 400 - 76; // Posición en Y del panel cuando es bajo
 var PANEL_FADE_TIME = 100; // Tiempo de fade in y out del panel
+var secondColX = 0; // Posición X de las 3ra y 4ta preguntas
 
 var Panel = require('./panel');
 
-var DialogueBox = function(game) {
+var DialogueBox = function(game, position, isTransparent) {
 
     Phaser.Group.call(this, game);
 
-    // Panel contenedor de texto
-    this.panel = new Panel(this.game, this.game.world.centerX, PANEL_LOW_Y);
+    // Posición del panel
+    switch (position) {
+        case 'low':
+            var panelX = this.game.world.centerX;
+            var panelY = 324;
+            break;
+
+        case 'battle':
+            var panelX = this.game.world.centerX + this.game.world.width / 4 - 3;
+            var panelY = 346;
+            break;
+
+        default:
+            var panelX = this.game.world.centerX;
+            var panelY = 324;
+            break;
+    }
+
+    // Agregar panel de texto
+    this.panel = new Panel(this.game, panelX, panelY);
     this.add(this.panel);
     this.panel.alpha = 0;
-    this.panelFadeIn = this.game.add.tween(this.panel).to({
-        alpha: 1
-    }, PANEL_FADE_TIME, Phaser.Easing.Linear.None, true);
+
+    // Dibujar sprite del Panel, a menos que se indique que es transparente
+    if (!isTransparent) {
+        this.panelFadeIn = this.game.add.tween(this.panel).to({
+            alpha: 1
+        }, PANEL_FADE_TIME, Phaser.Easing.Linear.None, true);
+    }
 
     // Indicar si se puede escribir nuevamente
     this.canContinue = true;
@@ -117,19 +163,25 @@ DialogueBox.prototype.addText = function(msg, question1, question2, question3, q
         // Si ya existen objetos del texto, eliminarlos
         if (this.text !== undefined)
             this.text.destroy();
-
-        // Agregar texto (vacío al inicio)
-        this.text = this.game.add.group();
-        this.add(this.text);
+        
         var textX = this.panel.x - this.panel.width / 2 + 24;
         var textY = this.panel.y - this.panel.height / 2 + 10; // Posición de la línea inicial
         var lineHeight = 24; // Espacio entre líneas
+        
+        // Agregar texto
+        this.text = this.game.add.group();
+        this.add(this.text);
 
-        // Crear un text por cada línea de diálogo
-        for (var i = 0; i < msg.length; i++) {
-            this["text" + i] = this.game.add.text(textX, textY, "", this.game.paragraphFont, this.text);
-            this["text" + i].setShadow(0.5, 0.5, '#111', 2);
-            textY += lineHeight;
+        if (msg) {
+            // Crear un text por cada línea de diálogo
+            for (var i = 0; i < msg.length; i++) {
+                this["text" + i] = this.game.add.text(textX, textY, "", this.game.paragraphFont, this.text);
+                this["text" + i].setShadow(0.5, 0.5, '#111', 2);
+                textY += lineHeight;
+            }
+            RenderText(this, msg);
+        } else {
+            this.writingTimer = this.game.time.events.repeat(0, 0, function(){}, this);
         }
 
         if (question1 !== undefined) {
@@ -154,8 +206,6 @@ DialogueBox.prototype.addText = function(msg, question1, question2, question3, q
             this.text.add(this.txtQuestion4);
         }
 
-        RenderText(this, msg);
-
         // Al finalizar la escritura, se activa el semáforo de que se puede continuar
         this.writingTimer.timer.onComplete.addOnce(function() {
             // Si hay preguntas, mostrarlas
@@ -163,25 +213,31 @@ DialogueBox.prototype.addText = function(msg, question1, question2, question3, q
                 if (question1 !== undefined) {
                     this.txtQuestion1.inputEnabled = true;
                     this.txtQuestion1.x = textX + 25;
-                    this.txtQuestion1.y = textY + 10;
+                    this.txtQuestion1.y = textY + 9;
                     this.txtQuestion1.visible = true;
                 }
                 if (question2 !== undefined) {
                     this.txtQuestion2.inputEnabled = true;
                     this.txtQuestion2.x = textX + 25;
-                    this.txtQuestion2.y = textY + 37;
+                    this.txtQuestion2.y = textY + 35;
                     this.txtQuestion2.visible = true;
+
+                    if (this.txtQuestion1.width >= this.txtQuestion2.width)
+                        secondColX = this.txtQuestion1.x + this.txtQuestion1.width + 42;
+                    else
+                        secondColX = this.txtQuestion2.x + this.txtQuestion2.width + 42;
                 }
+
                 if (question3 !== undefined) {
                     this.txtQuestion3.inputEnabled = true;
-                    this.txtQuestion3.x = this.game.world.centerX;
-                    this.txtQuestion3.y = textY + 10;
+                    this.txtQuestion3.x = secondColX;
+                    this.txtQuestion3.y = textY + 9;
                     this.txtQuestion3.visible = true;
                 }
                 if (question4 !== undefined) {
                     this.txtQuestion4.inputEnabled = true;
-                    this.txtQuestion4.x = this.game.world.centerX;
-                    this.txtQuestion4.y = textY + 37;
+                    this.txtQuestion4.x = secondColX;
+                    this.txtQuestion4.y = textY + 35;
                     this.txtQuestion4.visible = true;
                 }
             }
@@ -220,7 +276,27 @@ function RenderText(that, msg) {
 }
 
 module.exports = DialogueBox;
-},{"./panel":6}],5:[function(require,module,exports){
+},{"./panel":7}],5:[function(require,module,exports){
+'use strict';
+
+var FacePlayer = function(game, x, y, frame) {
+    Phaser.Sprite.call(this, game, x, y, 'heroe-faces', frame);
+
+    // initialize your prefab here
+
+};
+
+FacePlayer.prototype = Object.create(Phaser.Sprite.prototype);
+FacePlayer.prototype.constructor = FacePlayer;
+
+FacePlayer.prototype.update = function() {
+
+    // write your prefab's specific update code here
+
+};
+
+module.exports = FacePlayer;
+},{}],6:[function(require,module,exports){
 'use strict';
 
 var Npc = function(game, x, y, frame) {
@@ -276,7 +352,7 @@ Npc.Guard1.prototype = Object.create(Npc.prototype);
 Npc.Guard1.prototype.constructor = Npc;
 
 module.exports = Npc;
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 'use strict';
 
 var Panel = function(game, x, y, frame) {
@@ -298,7 +374,7 @@ Panel.prototype.update = function() {
 };
 
 module.exports = Panel;
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 'use strict';
 
 var upKey;
@@ -306,6 +382,8 @@ var rightKey;
 var downKey;
 var leftKey;
 var walkSpeed = 120;
+var xClick = 0; // Coordenada X del último click
+var yClick = 0; // Coordenada Y del último click
 
 var Player = function(game, x, y, frame) {
     Phaser.Sprite.call(this, game, x, y, 'heroe', frame);
@@ -313,6 +391,8 @@ var Player = function(game, x, y, frame) {
 
     // Vars
     this.isTalking = false;
+    this.isMovingToPointer = false;
+
 
     // Agregar animaciones de personaje
     this.animations.add('player_walk_up', [37, 36, 37, 38], 10, true);
@@ -326,6 +406,15 @@ var Player = function(game, x, y, frame) {
     leftKey = this.game.input.keyboard.addKey(Phaser.Keyboard.A);
     rightKey = this.game.input.keyboard.addKey(Phaser.Keyboard.D);
 
+    // Mover jugador a click
+    this.game.input.onDown.add(function(position) {
+        if (!this.isTalking) {
+            xClick = position.x;
+            yClick = position.y;
+            this.isMovingToPointer = true;
+        }
+    }, this);
+
     // Activar física en este objeto
     this.game.physics.arcade.enableBody(this);
     // Settings
@@ -334,7 +423,7 @@ var Player = function(game, x, y, frame) {
     this.body.collideWorldBounds = true;
 
     this.smoothed = false;
-        
+
 };
 
 Player.prototype = Object.create(Phaser.Sprite.prototype);
@@ -342,59 +431,95 @@ Player.prototype.constructor = Player;
 
 Player.prototype.update = function() {
 
-    this.body.velocity.x = 0;
-    this.body.velocity.y = 0;
+    // Si no se está moviendo hacia el cursor
+    this.body.velocity.setTo(0, 0); // Detener
+
+    // Si ha llegado a donde se hizo click, debe detenerse
+    if (Phaser.Rectangle.contains(this.body, xClick, yClick))
+        this.isMovingToPointer = false;
 
     // Si no está hablando, puede moverse
-    if (!this.isTalking){
-	    if (upKey.isDown) {
-	        if (downKey.isUp && rightKey.isUp && leftKey.isUp) {
-	            this.body.velocity.y = -walkSpeed;
-	            this.animations.play('player_walk_up');
-	        } else {
-	            this.body.velocity.y = -walkSpeed;
-	        }
-	    }
-	    if (downKey.isDown) {
-	        if (upKey.isUp && rightKey.isUp && leftKey.isUp) {
-	            this.body.velocity.y = walkSpeed;
-	            this.animations.play('player_walk_down');
-	        } else {
-	            this.body.velocity.y = walkSpeed;
-	        }
-	    }
-	    if (rightKey.isDown) {
-	        if (upKey.isUp && downKey.isUp && leftKey.isUp) {
-	            this.body.velocity.x = walkSpeed;
-	            this.animations.play('player_walk_right');
-	        } else {
-	            this.body.velocity.x = walkSpeed;
-	        }
-	    }
-	    if (leftKey.isDown) {
-	        if (upKey.isUp && downKey.isUp && rightKey.isUp) {
-	            this.body.velocity.x = -walkSpeed;
-	            this.animations.play('player_walk_left');
-	        } else {
-	            this.body.velocity.x = -walkSpeed;
-	        }
-	    }
-	} else {
+    if (!this.isTalking) {
+        // Input con mouse / toque
+        if (this.isMovingToPointer) {
+            this.game.physics.arcade.moveToXY(this, xClick, yClick, walkSpeed);
+            var angleBetween = this.game.physics.arcade.angleToXY(this, xClick, yClick);
+
+            switch (true) {
+                case (angleBetween >= -0.75 && angleBetween <= 0.75):
+                	this.animations.play('player_walk_right');
+                    break;
+                case (angleBetween >= 0.76 && angleBetween <= 2.25):
+                	this.animations.play('player_walk_down');
+                    break;
+                case (angleBetween >= 2.26 || angleBetween <= -2.26):
+                	this.animations.play('player_walk_left');
+                    break;
+                case (angleBetween >= -2.25 && angleBetween <= -0.76):
+                	this.animations.play('player_walk_up');
+                    break;
+            };
+        }
+
+        // Input con teclado
+        if (upKey.isDown) {
+            if (downKey.isUp && rightKey.isUp && leftKey.isUp) {
+                this.body.velocity.y = -walkSpeed;
+                this.animations.play('player_walk_up');
+            } else {
+                this.body.velocity.y = -walkSpeed;
+            }
+        }
+        if (downKey.isDown) {
+            if (upKey.isUp && rightKey.isUp && leftKey.isUp) {
+                this.body.velocity.y = walkSpeed;
+                this.animations.play('player_walk_down');
+            } else {
+                this.body.velocity.y = walkSpeed;
+            }
+        }
+        if (rightKey.isDown) {
+            if (upKey.isUp && downKey.isUp && leftKey.isUp) {
+                this.body.velocity.x = walkSpeed;
+                this.animations.play('player_walk_right');
+            } else {
+                this.body.velocity.x = walkSpeed;
+            }
+        }
+        if (leftKey.isDown) {
+            if (upKey.isUp && downKey.isUp && rightKey.isUp) {
+                this.body.velocity.x = -walkSpeed;
+                this.animations.play('player_walk_left');
+            } else {
+                this.body.velocity.x = -walkSpeed;
+            }
+        }
+    } else {
+        this.isMovingToPointer = false;
         this.animations.stop(null, true);
-	}
-	// Si las teclas de dirección no están presionadas, detener la animación de movimiento
-    if (!upKey.isDown && !rightKey.isDown && !downKey.isDown && !leftKey.isDown) {
+    }
+
+    // Si se presiona una de las teclas de movimiento, ya no moverse al puntero
+    if (upKey.isDown || rightKey.isDown || downKey.isDown || leftKey.isDown)
+        this.isMovingToPointer = false;
+
+    // Si las teclas de dirección no están presionadas, detener la animación de movimiento
+    if (!upKey.isDown && !rightKey.isDown && !downKey.isDown && !leftKey.isDown && !this.isMovingToPointer) {
         this.animations.stop(null, true);
     }
 
 };
 
 module.exports = Player;
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 'use strict';
 
 var BattlePlayer = require('../prefabs/battle-player');
 var BattleEnemy = require('../prefabs/battle-enemy');
+var FacePlayer = require('../prefabs/face-player');
+var DialogueBox = require('../prefabs/dialogue-box');
+
+var hpMaxWidth = 84;
 
 function Battle() {}
 
@@ -404,37 +529,115 @@ Battle.prototype = {
         // If you need to use the loader, you may need to use them here.
     },
     create: function() {
+        // ------------------------
         // Cargar fondo de batalla
+        // ------------------------
         this.battleBack = this.game.add.sprite(0, 0, 'battle-grass');
 
+        // ------------------------
         // Cargar UI
+        // ------------------------
         this.panelTop = this.game.add.sprite(0, 0, 'panel-top');
         this.panelBottom = this.game.add.sprite(
             this.game.world.width - this.game.cache.getImage('panel-bottom').width + 2,
             this.game.world.height - this.game.cache.getImage('panel-bottom').height,
             'panel-bottom');
-        // Panel de estado de jugador
+
+        // Crear grupo: Panel de estado del jugador
         this.battleStatus = this.game.add.group();
         this.battleStatus.Pane = this.game.add.sprite(
             0,
             this.game.world.height - this.game.cache.getImage('panel-battlestatus').height,
             'panel-battlestatus');
         this.battleStatus.add(this.battleStatus.Pane);
+
+        // Cara de jugador
+        this.facePlayer = new FacePlayer(
+            this.game,
+            this.battleStatus.Pane.x + 10,
+            this.battleStatus.Pane.y + 15,
+            0);
+        this.game.add.existing(this.facePlayer);
+        this.facePlayer.scale.x = 0.7;
+        this.facePlayer.scale.y = 0.7;
+
+        // Textos - Panel de estado jugador
         this.battleStatus.playerName = this.game.add.text(
-            this.battleStatus.Pane.x + 80, 
-            this.battleStatus.Pane.y + 15, 
-            this.game.playerName, 
-            this.game.paragraphFont, 
+            this.battleStatus.Pane.x + 83, // X relativo al padre
+            this.battleStatus.Pane.y + 15, // Y relativo al padre
+            this.game.player.name,
+            this.game.paragraphFont,
+            this.battlestatus);
+        this.battleStatus.hpLabel = this.game.add.text(
+            this.battleStatus.Pane.x + 83, // X relativo al padre
+            this.battleStatus.Pane.y + 44, // Y relativo al padre
+            "HP", {
+                font: "13px Molengo",
+                fill: "#fffb00"
+            },
             this.battlestatus);
 
+        // Contenedor barra de HP
+        this.battleStatus.hpContainer = this.game.add.sprite(
+            this.battleStatus.Pane.x + 81,
+            this.battleStatus.hpLabel.y + this.battleStatus.hpLabel.height - 6,
+            'panel-hpcontainer');
+        this.battleStatus.add(this.battleStatus.hpContainer);
 
+        // Barra de HP
+        this.battleStatus.hpBar = this.game.add.graphics(this.battleStatus.hpContainer.x + 4,
+            this.battleStatus.hpContainer.y + 3);
+        this.battleStatus.hpBar.lineStyle(0);
+        this.battleStatus.hpBar.beginFill(0xff2600, 1);
+        this.battleStatus.hpBar.drawRect(0, 0, hpMaxWidth, 16);
+        this.battleStatus.add(this.battleStatus.hpBar);
+
+        // Texto - Hp
+        this.battleStatus.hpText = this.game.add.text(
+            this.battleStatus.hpContainer.x + this.battleStatus.hpContainer.width / 2,
+            this.battleStatus.hpContainer.y + this.battleStatus.hpContainer.height / 2,
+            this.game.player.stats.hp + " / " + this.game.player.stats.maxHp, 
+            {
+                font: "13px Molengo",
+                fill: "#ffffff"
+            },
+            this.battlestatus);
+        this.battleStatus.hpText.anchor.setTo(0.5, 0.5);
+
+        // ------------------------
         // Cargar Jugador
+        // ------------------------
         this.battlePlayer = new BattlePlayer(this.game, this.game.world.width - 150, 240);
         this.game.add.existing(this.battlePlayer);
 
+        // ------------------------
         // Cargar Enemigos
+        // ------------------------
         this.enemies = [];
         this.loadEnemies(this.enemies, 'skeleton', 4);
+
+        //Comenzar turnos
+        this.enemies.forEach(function(element){
+            element.battleTimer.start();
+        });
+        
+        var msg = [
+                    "When I go to the bathroom, I usually have to take"
+                ];
+                var question1 = "Two minutes";
+                var question2 = "Three minutes";
+                var question3 = "All day nigga";
+                var question4 = "Let me bang bro";
+                this.createDialogue(msg, question1, question2, question3, question4);
+
+    },
+
+    playerTurn: function() {
+
+    },
+
+    enemyTurn: function() {
+
     },
 
     // Carga enemigos en pantalla y los alinea (máximo = 4)
@@ -448,7 +651,6 @@ Battle.prototype = {
             enemiesArray.push(this.game.add.existing(new BattleEnemy(this.game, 0, 0, type)));
         }
 
-        console.log(this);
         // Alinear enemigos
         if (this.enemies.length == 1) {
             enemiesArray[0].x = x;
@@ -488,8 +690,45 @@ Battle.prototype = {
         }
     },
 
+    // Agregar diálogo de la parte inferior
+    createDialogue: function(msg, question1, question2, question3, question4) {
+        // Crea el objeto si no existe
+        if (this.dialogueBox === undefined) {
+            this.dialogueBox = new DialogueBox(this.game, 'battle', true);
+            this.game.add.existing(this.dialogueBox);
+        }
+        // Añade texto al objeto
+        if (this.dialogueBox.canContinue) {
+            this.dialogueBox.addText(msg, question1, question2, question3, question4);
+        }
+    },
+
+    // Mensaje de 1 línea en la parte superior
+    showBattleMessage: function(msg) {
+        var i = 0; // Pivot del texto
+        var tempString = "";
+
+        if (this.battleMessage !== undefined) this.battleMessage.destroy();
+
+        this.battleMessage = this.game.add.text(16, 8, "", this.game.paragraphFont);
+        this.battleMessage.setShadow(0.5, 0.5, '#111', 2);
+
+        var writingTimer = this.game.time.events.repeat(22, msg.length / 2, function() {
+            tempString += msg[i];
+            if (i < (msg.length - 1))
+                tempString += msg[i + 1];
+            this.battleMessage.setText(tempString);
+            i += 2;
+        }, this);
+    },
+
     update: function() {
-        // state update code
+
+        // Medir barra de HP de jugador
+        this.battleStatus.hpBar.width = this.game.player.stats.hp / this.game.player.stats.maxHp * hpMaxWidth;
+
+
+
     },
     paused: function() {
         // This method will be called when game paused.
@@ -503,7 +742,7 @@ Battle.prototype = {
     }
 };
 module.exports = Battle;
-},{"../prefabs/battle-enemy":2,"../prefabs/battle-player":3}],9:[function(require,module,exports){
+},{"../prefabs/battle-enemy":2,"../prefabs/battle-player":3,"../prefabs/dialogue-box":4,"../prefabs/face-player":5}],10:[function(require,module,exports){
 'use strict';
 
 // Boot start
@@ -531,7 +770,7 @@ Boot.prototype = {
 };
 
 module.exports = Boot;
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 'use strict';
 
 function GameOver() {}
@@ -570,7 +809,7 @@ GameOver.prototype = {
     }
 };
 module.exports = GameOver;
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 'use strict';
 
 function Menu() {}
@@ -620,7 +859,7 @@ Menu.prototype = {
 };
 
 module.exports = Menu;
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 'use strict';
 
 var DialogueBox = require('../prefabs/dialogue-box');
@@ -647,10 +886,11 @@ Play.prototype = {
         this.game.state.add('rmFirstScenario', RmFirstScenario);
 
         // Ir a la primera escena: Creación del personaje
-        this.goToRoom('rmFirstScene');
+        this.goToRoom('rmFirstScenario');
     },
 
     update: function() {
+        
 
     },
 
@@ -854,10 +1094,11 @@ function RmFirstScenario() {
             obj2.body.velocity.x = 0;
             obj2.body.velocity.y = 0;
          } , null, this);
+
     }
 
     this.render = function() {
-        
+        //this.game.debug.spriteInfo(this.player, 32, 32);
     }
 
     this.guard1Dialogue = function(iDialogue, answer) {
@@ -899,7 +1140,7 @@ function RmFirstScenario() {
 }
 
 module.exports = Play;
-},{"../prefabs/dialogue-box":4,"../prefabs/npc":5,"../prefabs/panel":6,"../prefabs/player":7}],13:[function(require,module,exports){
+},{"../prefabs/dialogue-box":4,"../prefabs/npc":6,"../prefabs/panel":7,"../prefabs/player":8}],14:[function(require,module,exports){
 'use strict';
 
 // Preload start
@@ -917,7 +1158,9 @@ Preload.prototype = {
         this.load.onLoadComplete.addOnce(this.onLoadComplete, this);
         this.load.setPreloadSprite(this.preloadBar);
 
+        // ------------------------
         // Cargar aquí assets del juego
+        // ------------------------
         // UI
         this.load.image('logojackal', 'assets/img/logo-jackal.png');  // this = Pickartist
         this.load.image('fondo-mainmenu', 'assets/img/background-mainmenu.png');
@@ -939,6 +1182,7 @@ Preload.prototype = {
         this.game.load.spritesheet('player', 'assets/img/player1.png', 32, 32);
         this.game.load.spritesheet('heroe', 'assets/img/heroe01.png', 32, 32);
         this.game.load.spritesheet('heroe-batalla', 'assets/img/heroe01-batalla.png', 96, 96);
+        this.game.load.spritesheet('heroe-faces', 'assets/img/face-heroes.png', 96, 96);
         // Fondos
         this.load.image('battle-grass', 'assets/img/battleback-1.png');
 
@@ -961,7 +1205,7 @@ Preload.prototype = {
     update: function() {
         if (!!this.ready) {
             // Iniciar MainMenu
-            this.game.state.start('menu');
+            this.game.state.start('play');
         }
     },
     onLoadComplete: function() {
