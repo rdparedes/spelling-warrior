@@ -22,7 +22,7 @@ function GoFullScreen() {
         !document.mozFullScreenEnabled ||
         !document.msFullscreenEnabled
     ) {
-        var fsCanvas = document.getElementById('pickup-artist');
+        var fsCanvas = document.getElementById('spelling-warrior');
         if (fsCanvas.requestFullscreen)
             fsCanvas.requestFullscreen();
         else if (fsCanvas.webkitRequestFullscreen)

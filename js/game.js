@@ -3,21 +3,37 @@
 
 window.onload = function () {
 	
-  	var game = new Phaser.Game(600, 400, Phaser.AUTO, 'pickup-artist');
+  	var game = new Phaser.Game(600, 400, Phaser.AUTO, 'spelling-warrior');
 
 	// Variables globales
 	game.player = {
 		name: 'Will',
 		level: 1,
+		experience: 0,
+		xpCap: 15,
 		score: 0,
 		stats: 
 		{
 			maxHp: 67,
 			hp: 67,
 			attack: 7,
-			speed: 5,
+			defense: 5
+		},
+		abilities:
+		{
+			attack: {
+				// Nombre ataque : Fuerza
+				'attack': 1,
+				'special attack': 2
+			}, 
+			heal: {
+				'cure': 50
+			}
 		}
 	};
+
+	game.questions = [];
+	game.previousRoom = '';
 
 	// Game States
 	game.state.add('battle', require('./states/battle'));
@@ -35,6 +51,8 @@ window.onload = function () {
 
 var BattleEnemy = function(game, x, y, enemyType) {
 
+	this.tag = 'enemy';
+
     switch (enemyType) {
         case 'skeleton':
             Phaser.Sprite.call(this, game, x, y, 'skeleton');
@@ -42,22 +60,34 @@ var BattleEnemy = function(game, x, y, enemyType) {
             this.stats = {
                 maxHp: 12,
                 hp: 12,
-                attack: 3,
-                speed: 3,
-            }
+                attack: 4,
+                speed: 2,
+                level: 2,
+                xp: 3
+            };
+            this.attacks = {
+            	// Nombre ataque: [fuerza, probabilidad de uso]
+            	'normal': [1, 85],
+            	'strong': [2, 15]
+            };
             break;
     }
 
     this.anchor.setTo(0.5, 1);
     this.smoothed = false;
 
-    this.turn = false;
+    // Turno de atacar
+    this.ready = false;		// Indica que está listo para ser colocado en cola de acciones
+    this.executing = false;	// Indica si ya se está ejecutando acción
+    this.done = false;		// Indica que ha terminado de ejecutarse
+	this.damageDone = 0;
 
+    // Temporizador para que el enemigo ataque
     this.battleTimer = this.game.time.create(false);
-    this.battleTimer.loop(this.stats.speed * 1500 + Math.floor(Math.random() * 250) + 1,
-        function() {
-            this.turn = true
-            console.log(this + " ataca");
+    this.battleTimer.loop(15000 / this.stats.speed + Math.floor(Math.random() * 900) + 1,
+        function() { 
+        	this.ready = true;	// Indicar que está listo para ser ejecutado
+        	this.battleTimer.pause();	// Pausar temporizador hasta que se ejecute acción de este enemigo
         }, this);
 };
 
@@ -65,10 +95,56 @@ BattleEnemy.prototype = Object.create(Phaser.Sprite.prototype);
 BattleEnemy.prototype.constructor = BattleEnemy;
 
 BattleEnemy.prototype.update = function() {
-
 };
 
-BattleEnemy.prototype.attack = function() {
+BattleEnemy.prototype.action = function(player, playerSprite) {
+
+	this.executing = true;	// Indicar que se está ejecutando la acción del enemigo
+	this.done = false;	// Indicar que todavía no ha terminado de ejecutarse
+
+	var attackName = '';
+	var temp = 0;
+
+	// Elegir qué ataque usar
+	var chosenAttack = Math.floor(Math.random() * 100);	// Aleatorio entre 1 y 100
+	$.each(this.attacks, function(key, value) {
+		// En cada iteración, si el aleatorio coincide con la probabilidad del ataque actual,
+		// se rompe el bucle y se elige dicho ataque
+		temp += value[1];
+		if (chosenAttack <= temp) {
+			attackName = key;
+			return false;
+		}
+	});
+
+	// Calcular daño
+	this.damageDone = Math.floor(this.attacks[attackName][0]) +
+					Math.floor(this.stats.attack / 2) -
+					Math.floor(player.stats.defense / 3) + 
+					Math.floor(Math.random() * this.stats.level); 
+
+	// Animación de parpadeo
+	var blink = this.game.time.events.repeat(75, 4, function() {
+		if (this.tint == 0xFFFFFF)
+			this.tint = 0x171700;
+		else
+			this.tint = 0xFFFFFF;
+    }, this);
+	
+	// Al finalizar parpadeo
+	blink.timer.onComplete.addOnce(function() {
+		// Ejecutar animación de ataque enemigo
+
+
+        player.stats.hp -= this.damageDone;
+        (player.stats.hp <= 0) && (player.stats.hp = 0);
+
+		this.done = true;	// Indicar que ha terminado de ejecutarse
+		this.battleTimer.resume();	// Resumir temporizador de este enemigo
+
+    	//console.log(this + " ataca con " + attackName + " y causa " + this.damageDone + " de daño.");
+
+	}, this);	
 
 };
 
@@ -77,27 +153,109 @@ module.exports = BattleEnemy;
 'use strict';
 
 var BattlePlayer = function(game, x, y, frame) {
-  Phaser.Sprite.call(this, game, x, y, 'heroe-batalla', frame);
-  this.anchor.setTo(0.5, 1);
 
+    this.tag = 'player';
+
+    Phaser.Sprite.call(this, game, x, y, 'heroe-batalla', frame);
+    this.anchor.setTo(0.5, 1);
+    this.smoothed = false;
+
+    // Animaciones de combate
     this.animations.add('player_idle', [0, 1, 2, 3], 8, true);
+    this.animations.add('player_attack', [16, 17, 18, 19], 8, false);
+    this.animations.add('player_struck', [12, 13, 14, 15], 8, false);
+    this.animations.add('player_advance', [32, 33, 34, 35], 8, true);
+    this.animations.add('player_retreat', [36, 37, 38, 39], 8, true);
+    this.animations.add('player_victory', [40, 41, 42, 43], 4, true);
+    this.animations.add('player_dead', [48, 49, 50, 51], 8, true);
 
     // Animación por defecto
     this.animations.play('player_idle');
-  
+
+    // Activar física en este objeto
+    this.game.physics.arcade.enableBody(this);
+    this.body.allowGravity = false;
+
+    this.attackType = ''; // Tipo de ataque (correcto o fallido)
+    //this.moving = false;
+
+    this.executing = false; // Indica si ya se está ejecutando acción
+    this.done = false; // Indica que ha terminado de ejecutarse
+    this.damageDone = 0;
+
 };
 
 BattlePlayer.prototype = Object.create(Phaser.Sprite.prototype);
 BattlePlayer.prototype.constructor = BattlePlayer;
 
 BattlePlayer.prototype.update = function() {
-  
-  // write your prefab's specific update code here
-  
+};
+
+BattlePlayer.prototype.action = function(enemy) {
+
+    this.executing = true; // Indicar que se está ejecutando la acción del jugador
+    this.done = false; // Indicar que todavía no ha terminado de ejecutarse
+
+    var ability = '';
+    var attackName = '';
+
+    // Elegir ataque
+    console.log("Pendiente: Añadir resto de habilidades y ataques");
+    ability = this.game.player.abilities.attack;
+
+    // Elegir habilidad
+    switch (ability) {
+        case 'attack':
+            attackName = ability['attack'];
+            break;
+        case 'heal':
+            break;
+    }
+
+    this.damageDone = Math.floor(ability['attack']) +
+        Math.floor(this.game.player.stats.attack / 2) +
+        Math.floor(Math.random() * (this.game.player.level + 1) );
+
+    // Animación
+    var x = this.x;	// Guardar coordenadas iniciales
+    var y = this.y;
+
+    this.animations.play('player_advance');
+    var moveToEnemy = this.game.add.tween(this).to({
+        x: enemy.x + 50,
+        y: enemy.y
+    }, 500, Phaser.Easing.Linear.None, true);
+
+    moveToEnemy.onComplete.addOnce(function() {
+        this.animations.play('player_attack');
+    }, this);
+
+    this.animations.getAnimation('player_attack').onComplete.addOnce(function() {
+    	// Mostrar animación de ataque
+    	
+
+        // Mover de vuelta al lugar inicial
+        this.animations.play('player_retreat');
+        var moveToStart = this.game.add.tween(this).to({
+            x: x,
+            y: y
+        }, 400, Phaser.Easing.Linear.None, true);
+
+		// Al finalizar animación de ataque
+        moveToStart.onComplete.addOnce(function() {
+            this.animations.play('player_idle');
+
+            (this.attackType == 'correct') && (enemy.stats.hp -= this.damageDone);
+            (enemy.stats.hp <= 0) && (enemy.kill()); 
+
+    		this.done = true;
+        }, this);
+    }, this);
+
+
 };
 
 module.exports = BattlePlayer;
-
 },{}],4:[function(require,module,exports){
 'use strict';
 
@@ -520,15 +678,20 @@ var FacePlayer = require('../prefabs/face-player');
 var DialogueBox = require('../prefabs/dialogue-box');
 
 var hpMaxWidth = 84;
+var actionQueue = [];
 
 function Battle() {}
 
 Battle.prototype = {
     preload: function() {
-        // Override this method to add some load operations. 
-        // If you need to use the loader, you may need to use them here.
+
     },
     create: function() {
+
+        this.xpGained = 0;
+        this.leveledUp = false;
+        this.playerDead = false;
+
         // ------------------------
         // Cargar fondo de batalla
         // ------------------------
@@ -591,13 +754,15 @@ Battle.prototype = {
         this.battleStatus.hpBar.beginFill(0xff2600, 1);
         this.battleStatus.hpBar.drawRect(0, 0, hpMaxWidth, 16);
         this.battleStatus.add(this.battleStatus.hpBar);
+        // Asignar ancho inicial según hp del jugador
+        this.battleStatus.hpBar.width = this.game.player.stats.hp / this.game.player.stats.maxHp * hpMaxWidth;
+
 
         // Texto - Hp
         this.battleStatus.hpText = this.game.add.text(
             this.battleStatus.hpContainer.x + this.battleStatus.hpContainer.width / 2,
             this.battleStatus.hpContainer.y + this.battleStatus.hpContainer.height / 2,
-            this.game.player.stats.hp + " / " + this.game.player.stats.maxHp, 
-            {
+            this.game.player.stats.hp + " / " + this.game.player.stats.maxHp, {
                 font: "13px Molengo",
                 fill: "#ffffff"
             },
@@ -605,39 +770,43 @@ Battle.prototype = {
         this.battleStatus.hpText.anchor.setTo(0.5, 0.5);
 
         // ------------------------
+        // Cargar Enemigos
+        // ------------------------
+        this.enemies = [];
+        this.loadEnemies(this.enemies, 'skeleton', 1);
+
+        // ------------------------
         // Cargar Jugador
         // ------------------------
         this.battlePlayer = new BattlePlayer(this.game, this.game.world.width - 150, 240);
         this.game.add.existing(this.battlePlayer);
 
-        // ------------------------
-        // Cargar Enemigos
-        // ------------------------
-        this.enemies = [];
-        this.loadEnemies(this.enemies, 'skeleton', 4);
-
         //Comenzar turnos
-        this.enemies.forEach(function(element){
-            element.battleTimer.start();
-        });
-        
-        var msg = [
-                    "When I go to the bathroom, I usually have to take"
-                ];
-                var question1 = "Two minutes";
-                var question2 = "Three minutes";
-                var question3 = "All day nigga";
-                var question4 = "Let me bang bro";
-                this.createDialogue(msg, question1, question2, question3, question4);
+        this.enemies.forEach(function(enemy) {
+            enemy.battleTimer.start();
+        }, this);
+        this.playerTurn();
 
     },
 
     playerTurn: function() {
 
-    },
+        // Seleccionar de una pregunta al azar del arreglo de preguntas
+        var questionIndex = Math.floor(Math.random() * this.game.questions.length);
+        var questionObj = this.game.questions[questionIndex];
 
-    enemyTurn: function() {
+        var msg = [
+            questionObj.text
+        ];
 
+        var questions = [];
+        for (var i = 0; i < 4; i++)
+            (questionObj.answers[i] !== undefined) && (questions[i] = questionObj.answers[i]);
+
+        var correctAnswer = questionObj.correct;
+
+        // Crear pregunta con los elementos obtenidos del arreglo de preguntas
+        this.createDialogue(msg, questions[0], questions[1], questions[2], questions[3], correctAnswer);
     },
 
     // Carga enemigos en pantalla y los alinea (máximo = 4)
@@ -691,45 +860,205 @@ Battle.prototype = {
     },
 
     // Agregar diálogo de la parte inferior
-    createDialogue: function(msg, question1, question2, question3, question4) {
+    createDialogue: function(msg, question1, question2, question3, question4, correctAnswer) {
         // Crea el objeto si no existe
         if (this.dialogueBox === undefined) {
             this.dialogueBox = new DialogueBox(this.game, 'battle', true);
             this.game.add.existing(this.dialogueBox);
         }
-        // Añade texto al objeto
+
+        // Añade texto
         if (this.dialogueBox.canContinue) {
             this.dialogueBox.addText(msg, question1, question2, question3, question4);
+
+            // Añadir evento de click a las preguntas
+            this.dialogueBox.txtQuestion1.events.onInputDown.addOnce(function() {
+                var answerId = 1;
+                this.playerAction(answerId == correctAnswer);
+            }, this);
+
+            if (this.dialogueBox.txtQuestion2 !== undefined)
+                this.dialogueBox.txtQuestion2.events.onInputDown.addOnce(function() {
+                    var answerId = 2;
+                    this.playerAction(answerId == correctAnswer);
+                }, this);
+
+            if (this.dialogueBox.txtQuestion3 !== undefined)
+                this.dialogueBox.txtQuestion3.events.onInputDown.addOnce(function() {
+                    var answerId = 3;
+                    this.playerAction(answerId == correctAnswer);
+                }, this);
+
+            if (this.dialogueBox.txtQuestion4 !== undefined)
+                this.dialogueBox.txtQuestion4.events.onInputDown.addOnce(function() {
+                    var answerId = 4;
+                    this.playerAction(answerId == correctAnswer);
+                }, this);
         }
     },
 
+    // Destruir cuadro de diálogo
+    destroyDialogue: function() {
+        // Asegurarse que el objeto esté definido antes de destruirlo
+        if (this.dialogueBox !== undefined)
+        // Si se ha terminado de escribir
+            if (this.dialogueBox.canContinue) {
+                this.dialogueBox.destroy(true); 
+                delete this.dialogueBox;
+            }
+    },
+
+    playerAction: function(correctAnswer) {
+        // Primero, destruir todos los eventos de las preguntas para evitar que se vuelva
+        // a elegir otra opción
+        for (var i = 1; i <= 4; i++)
+            if (this.dialogueBox['txtQuestion' + i] !== undefined)
+                this.dialogueBox['txtQuestion' + i].events.destroy();
+
+            // Elegir ataque según la respuesta elegida
+        if (correctAnswer) {
+            this.showBattleMessage("Correct answer");
+            this.battlePlayer.attackType = 'correct';
+        } else {
+            this.showBattleMessage("Wrong answer! Try again");
+            this.battlePlayer.attackType = 'incorrect';
+        }
+        actionQueue.push(this.battlePlayer);
+    },
+
     // Mensaje de 1 línea en la parte superior
-    showBattleMessage: function(msg) {
+    showBattleMessage: function(msg, autoDestroy) {
         var i = 0; // Pivot del texto
         var tempString = "";
 
-        if (this.battleMessage !== undefined) this.battleMessage.destroy();
+        // Por defecto, autodestruir mensaje 
+        autoDestroy = typeof autoDestroy !== 'undefined' ? autoDestroy : true;
+
+        (this.battleMessage !== undefined) && (this.battleMessage.destroy());
+        (this.destroyTimer !== undefined) && (this.destroyTimer.destroy());
 
         this.battleMessage = this.game.add.text(16, 8, "", this.game.paragraphFont);
         this.battleMessage.setShadow(0.5, 0.5, '#111', 2);
 
-        var writingTimer = this.game.time.events.repeat(22, msg.length / 2, function() {
+        this.game.time.events.repeat(22, msg.length / 2, function() {
             tempString += msg[i];
             if (i < (msg.length - 1))
                 tempString += msg[i + 1];
             this.battleMessage.setText(tempString);
             i += 2;
         }, this);
+
+        if (autoDestroy) {
+            // Destruir mensaje después de 3 segundos
+            this.destroyTimer = this.game.time.create(true);
+            this.destroyTimer.add(Phaser.Timer.SECOND * 3, function() {
+                this.battleMessage.destroy();
+            }, this);
+            this.destroyTimer.start();
+        }
+    },
+
+    // Acción que se ejecuta al ganar combate
+    win: function() {
+        this.battlePlayer.animations.play('player_victory');
+        this.showBattleMessage('Victory!', false);
+
+        this.game.input.onDown.addOnce(function() {
+            this.game.player.experience += this.xpGained;
+            this.showBattleMessage('Gained ' + this.xpGained + ' points of experience', false);
+            while (this.game.player.experience >= this.game.player.xpCap) {
+                this.leveledUp = true;
+                this.game.player.level++;
+                this.game.player.xpCap *= 2;
+            }
+
+            if (this.leveledUp) {
+                this.game.input.onDown.addOnce(function() {
+                    this.showBattleMessage('Level ' + this.game.player.level + ' reached!', false);
+                    this.game.input.onDown.addOnce(function() {
+                        // Ir de vuelta al mapa anterior
+                        this.goToRoom(this.game.previousRoom);
+                    }, this);
+                }, this);
+            } else {
+                this.game.input.onDown.addOnce(function() {
+                    // Ir de vuelta al mapa anterior
+                    this.goToRoom(this.game.previousRoom);
+                }, this);
+            }
+        }, this);
+    },
+
+    lose: function() {
+        this.playerDead = true;
+        this.battlePlayer.animations.play('player_dead');
+        this.showBattleMessage('Annihilated...', false);
+        this.game.input.onDown.addOnce(function() {
+            this.goToRoom('gameover');
+        }, this);
     },
 
     update: function() {
-
-        // Medir barra de HP de jugador
+        // Redibujar barra de HP de jugador
         this.battleStatus.hpBar.width = this.game.player.stats.hp / this.game.player.stats.maxHp * hpMaxWidth;
+        this.battleStatus.hpText.setText(this.game.player.stats.hp + " / " + this.game.player.stats.maxHp);
 
+        // Si el jugador ha perdido todo su HP, morir
+        if (this.game.player.stats.hp <= 0 && !this.playerDead) {
+            this.lose();
+        }
 
+        // Si el enemigo ha muerto, borrarlo del arreglo
+        for (var i = 0; i < this.enemies.length; i++)
+            if (!this.enemies[i].exists) {
+                this.xpGained += this.enemies[i].stats.xp;
+                this.enemies.splice(i, 1);
+                // Si no quedan enemigos, ganar combate
+                if (this.enemies.length <= 0) {
+                    this.win();
+                }
+            }
+
+            // Acciones de enemigos
+        if (this.enemies.length > 0 && !this.playerDead)
+            for (var i in this.enemies) {
+                // Si está listo, agregarlo a la cola 
+                if (this.enemies[i].ready) {
+                    this.enemies[i].ready = false,
+                    actionQueue.push(this.enemies[i]);
+                }
+            }
+
+        // Cola de acciones del combate
+        if (actionQueue.length >= 1 && !this.playerDead) {
+            if (!actionQueue[0].executing) {
+                // Realizar acción según quién está en la cola (enemigo o jugador)
+                switch (actionQueue[0].tag) {
+                    // Si es enemigo, enviarle el jugador para que lo ataque
+                    case 'enemy':
+                        actionQueue[0].action(this.game.player, this.battlePlayer);
+                        break;
+                        // Si es el jugador, enviarle un enemigo al azar
+                    case 'player':
+                        actionQueue[0].action(this.enemies[Math.floor(Math.random() * this.enemies.length)]);
+                        break;
+                }
+            }
+            // Cuando el objeto en cola termina de realizar sus acciones
+            if (actionQueue[0].done && this.enemies.length > 0) {
+                (actionQueue[0].tag == 'player') && this.playerTurn();
+                actionQueue[0].executing = false;
+                actionQueue.splice(0, 1);
+            }
+        }
 
     },
+
+    // Ir a un room diferente
+    goToRoom: function(room) {
+        this.game.state.start(room);
+    },
+
     paused: function() {
         // This method will be called when game paused.
     },
@@ -737,8 +1066,10 @@ Battle.prototype = {
         // Put render operations here.
     },
     shutdown: function() {
-        // This method will be called when the state is shut down 
-        // (i.e. you switch to another state from this one).
+        // Borrar cola de acciones
+        actionQueue = [];
+        // Borrar cualquier diálogo que haya quedado creado
+        this.destroyDialogue();
     }
 };
 module.exports = Battle;
@@ -867,7 +1198,7 @@ var Panel = require('../prefabs/panel');
 var Player = require('../prefabs/player');
 var Npc = require('../prefabs/npc');
 
-var PANEL_FADE_TIME = 100; 
+var PANEL_FADE_TIME = 100;
 
 // Inicio de play
 function Play() {}
@@ -889,10 +1220,7 @@ Play.prototype = {
         this.goToRoom('rmFirstScenario');
     },
 
-    update: function() {
-        
-
-    },
+    update: function() {},
 
     // Agregar cuadro de diálogo
     createDialogue: function(msg, question1, question2, question3, question4) {
@@ -915,22 +1243,40 @@ Play.prototype = {
         if (this.dialogueBox !== undefined)
         // Si se ha terminado de escribir
             if (this.dialogueBox.canContinue) {
-                var fadeOut = this.game.add.tween(this.dialogueBox).to({ // Realizar animación
-                    alpha: 0
-                }, PANEL_FADE_TIME, Phaser.Easing.Linear.None, true);
-                // Luego de una animación, destruir el objeto
-                fadeOut.onComplete.add(function() {
-                    this.dialogueBox.destroy(true); 
-                    delete this.dialogueBox;
-                    // Indicar que el jugador ya no está hablando
-                    if (this.player !== undefined) this.player.isTalking = false;
-                }, this);
-            }
+            var fadeOut = this.game.add.tween(this.dialogueBox).to({ // Realizar animación
+                alpha: 0
+            }, PANEL_FADE_TIME, Phaser.Easing.Linear.None, true);
+            // Luego de una animación, destruir el objeto
+            fadeOut.onComplete.add(function() {
+                this.dialogueBox.destroy(true);
+                delete this.dialogueBox;
+                // Indicar que el jugador ya no está hablando
+                if (this.player !== undefined) this.player.isTalking = false;
+            }, this);
+        }
     },
 
     // Ir a un room diferente
     goToRoom: function(room) {
+        this.saveLocation();
         this.game.state.start(room);
+    },
+
+    // Guardar ubicación actual de jugador
+    saveLocation: function() {
+        this.game.previousRoom = this.game.state.current;
+        if (this.playerX !== undefined) {
+            this.playerX = this.player.x;
+            this.playerY = this.player.y;
+        }
+    },
+
+    shutdown: function() {
+        // Borrar cualquier diálogo que haya quedado creado
+        if (this.dialogueBox !== undefined) {
+            this.dialogueBox.destroy(true);
+            delete this.dialogueBox;
+        }
     }
 
 };
@@ -948,7 +1294,7 @@ function RmFirstScene() {
     }
 
     this.startEvent = function(iDialogue, answer) {
-        switch (iDialogue){
+        switch (iDialogue) {
             case 1:
                 var msg = [
                     "First and foremost, what's your name?"
@@ -960,38 +1306,38 @@ function RmFirstScene() {
                 this.createDialogue(msg, question1, question2, question3, question4);
 
                 this.dialogueBox.txtQuestion1.events.onInputDown.addOnce(function() {
-                        this.startEvent(iDialogue + 1, 1);
-                },this);
+                    this.startEvent(iDialogue + 1, 1);
+                }, this);
                 this.dialogueBox.txtQuestion2.events.onInputDown.addOnce(function() {
-                        this.startEvent(iDialogue + 1, 2);
-                },this);
+                    this.startEvent(iDialogue + 1, 2);
+                }, this);
                 this.dialogueBox.txtQuestion3.events.onInputDown.addOnce(function() {
-                        this.startEvent(iDialogue + 1, 3);
-                },this);
+                    this.startEvent(iDialogue + 1, 3);
+                }, this);
                 this.dialogueBox.txtQuestion4.events.onInputDown.addOnce(function() {
-                        this.startEvent(iDialogue + 1, 4);
-                },this);
-            break;
+                    this.startEvent(iDialogue + 1, 4);
+                }, this);
+                break;
 
             case 2:
-                switch (answer){
-                    case 1: 
-                        this.createDialogue( ["Option 1 chosen"]);
-                    break;
+                switch (answer) {
+                    case 1:
+                        this.createDialogue(["Option 1 chosen"]);
+                        break;
                     case 2:
-                        this.createDialogue( ["Option 2 chosen"]);
-                    break; 
+                        this.createDialogue(["Option 2 chosen"]);
+                        break;
                     case 3:
-                        this.createDialogue( ["Option 3 chosen"]);
-                    break; 
+                        this.createDialogue(["Option 3 chosen"]);
+                        break;
                     case 4:
-                        this.createDialogue( ["Option 4 chosen"]);
-                    break; 
+                        this.createDialogue(["Option 4 chosen"]);
+                        break;
                 }
                 this.game.input.onDown.addOnce(function() {
                     this.startEvent(iDialogue + 1);
                 }, this);
-            break;
+                break;
 
             case 3:
                 var msg = [
@@ -1004,49 +1350,50 @@ function RmFirstScene() {
                 this.createDialogue(msg, question1, question2, question3, question4);
 
                 this.dialogueBox.txtQuestion1.events.onInputDown.addOnce(function() {
-                        this.startEvent(iDialogue + 1, 1);
-                },this);
+                    this.startEvent(iDialogue + 1, 1);
+                }, this);
                 this.dialogueBox.txtQuestion2.events.onInputDown.addOnce(function() {
-                        this.startEvent(iDialogue + 1, 2);
-                },this);
+                    this.startEvent(iDialogue + 1, 2);
+                }, this);
                 this.dialogueBox.txtQuestion3.events.onInputDown.addOnce(function() {
-                        this.startEvent(iDialogue + 1, 3);
-                },this);
+                    this.startEvent(iDialogue + 1, 3);
+                }, this);
                 this.dialogueBox.txtQuestion4.events.onInputDown.addOnce(function() {
-                        this.startEvent(iDialogue + 1, 4);
-                },this);
-            break;
+                    this.startEvent(iDialogue + 1, 4);
+                }, this);
+                break;
 
             case 4:
-                switch (answer){
-                    case 1: 
-                        this.createDialogue( ["Option 1 chosen"]);
-                    break;
+                switch (answer) {
+                    case 1:
+                        this.createDialogue(["Option 1 chosen"]);
+                        break;
                     case 2:
-                        this.createDialogue( ["Option 2 chosen"]);
-                    break; 
+                        this.createDialogue(["Option 2 chosen"]);
+                        break;
                     case 3:
-                        this.createDialogue( ["Option 3 chosen"]);
-                    break; 
+                        this.createDialogue(["Option 3 chosen"]);
+                        break;
                     case 4:
-                        this.createDialogue( ["Option 4 chosen"]);
-                    break; 
+                        this.createDialogue(["Option 4 chosen"]);
+                        break;
                 }
                 this.game.input.onDown.addOnce(function() {
                     this.startEvent(iDialogue + 1);
                 }, this);
-            break;
+                break;
 
             case 5:
                 this.createDialogue(["This is a dialogue of several lines... One",
-                            "two, three. This is a dialogue system similar to the ones found in",
-                            "old rpgs. It has letter by letter rendering, and you can choose your",
-                            "answers accordingly."]);
-               
+                    "two, three. This is a dialogue system similar to the ones found in",
+                    "old rpgs. It has letter by letter rendering, and you can choose your",
+                    "answers accordingly."
+                ]);
+
                 this.game.input.onDown.addOnce(function() {
                     this.startEvent(iDialogue + 1);
                 }, this);
-            break;
+                break;
 
             case 6:
                 this.createDialogue(["Starting game..."]);
@@ -1054,7 +1401,7 @@ function RmFirstScene() {
                     this.destroyDialogue();
                     this.goToRoom('rmFirstScenario');
                 }, this);
-            break;
+                break;
         }
     }
 
@@ -1072,8 +1419,12 @@ function RmFirstScenario() {
         // Background
         this.game.add.sprite(0, 0, 'escena1');
 
+        // Coordenadas donde aparece el jugador
+        this.playerX = typeof this.playerX !== 'undefined' ? this.playerX : this.game.world.centerX;
+        this.playerY = typeof this.playerY !== 'undefined' ? this.playerY : this.game.world.centerY;
+
         // Creamos el jugador
-        this.player = new Player(this.game, this.game.world.centerX, this.game.world.centerY);
+        this.player = new Player(this.game, this.playerX, this.playerY);
         this.game.add.existing(this.player);
 
         // Grupo que contendrá todos los Npcs
@@ -1083,17 +1434,17 @@ function RmFirstScenario() {
         this.guard1 = new Npc.Guard1(this.game, 200, this.game.world.centerY);
         this.NPCs.add(this.guard1);
         this.guard1.events.onInputDown.add(function() {
-                this.guard1Dialogue(1);
-            },this);
+            this.guard1Dialogue(1);
+        }, this);
 
     }
 
     this.update = function() {
-         // object1, object2, collideCallback, processCallback, callbackContext
+        // object1, object2, collideCallback, processCallback, callbackContext
         this.game.physics.arcade.collide(this.player, this.NPCs, function(obj1, obj2) {
             obj2.body.velocity.x = 0;
             obj2.body.velocity.y = 0;
-         } , null, this);
+        }, null, this);
 
     }
 
@@ -1102,7 +1453,7 @@ function RmFirstScenario() {
     }
 
     this.guard1Dialogue = function(iDialogue, answer) {
-        switch (iDialogue){
+        switch (iDialogue) {
             case 1:
                 var msg = [
                     "Hello, my name is Hob, I'm a guard from the old",
@@ -1113,7 +1464,7 @@ function RmFirstScenario() {
                 this.game.input.onDown.addOnce(function() {
                     this.guard1Dialogue(iDialogue + 1);
                 }, this);
-            break;
+                break;
 
             case 2:
                 var msg = [
@@ -1125,15 +1476,13 @@ function RmFirstScenario() {
                 this.createDialogue(msg, question1, question2);
 
                 this.dialogueBox.txtQuestion1.events.onInputDown.addOnce(function() {
-                        this.destroyDialogue();
-                        console.log(this.game.state.getCurrentState());
-                        this.goToRoom('battle');
-                },this);
+                    this.goToRoom('battle');
+                }, this);
                 this.dialogueBox.txtQuestion2.events.onInputDown.addOnce(function() {
-                        console.log("Pendiente: Arreglar el salto que ocurre en los diálogos.");
-                        this.destroyDialogue();
-                },this);
-            break;
+                    console.log("Pendiente: Arreglar el salto que ocurre en los diálogos.");
+                    this.destroyDialogue();
+                }, this);
+                break;
         }
     }
 
@@ -1186,7 +1535,7 @@ Preload.prototype = {
         // Fondos
         this.load.image('battle-grass', 'assets/img/battleback-1.png');
 
-        // Llamar al script de Google WebFont Loader. Utiliza la función que se encuentra en utils
+        // Scripts
         this.game.load.script('webfont', '//ajax.googleapis.com/ajax/libs/webfont/1.4.7/webfont.js');
 
         // Configurar fuente
@@ -1197,6 +1546,16 @@ Preload.prototype = {
             stroke: "black",
             strokeThickness: 1
         };
+
+        // Cargar preguntas de batalla
+        var self = this;
+        
+        $.getJSON('js/questions.json', { format: "json" })
+            .done(function(data) {
+                data.question.forEach(function(element, index){
+                    self.game.questions.push(element);
+                }, this);
+            });
 
     },
     create: function() {
