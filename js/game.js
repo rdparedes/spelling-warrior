@@ -1296,6 +1296,13 @@ module.exports = GameOver;
 function Menu() {}
 
 var theme;
+var clickSound;
+
+var imgLogo;
+var imgMain;
+var btnStart;
+var btnHiScores;
+var btnCredits;
 
 Menu.prototype = {
 
@@ -1306,43 +1313,73 @@ Menu.prototype = {
             align: 'center'
         };
 
-        this.titleText = this.game.add.text(this.game.world.centerX, 300, '\'Allo, \'Allo!', style);
-        this.titleText.anchor.setTo(0.5, 0.5);
-
         // Cargar sprites
-        this.imgLogo = this.game.add.sprite(this.game.world.centerX, this.game.world.centerY, 'logojackal');
-        this.imgLogo.anchor.setTo(0.5, 0.5);
+        imgLogo = this.game.add.sprite(this.game.world.centerX, this.game.world.centerY, 'logojackal');
+        imgLogo.anchor.setTo(0.5, 0.5);
 
         // Ocultar 1ra imagen después de 2 segundos
         // Mostrar menú principal
         this.game.time.events.add(Phaser.Timer.SECOND * 2, function() {
 
-            this.imgMainMenu = this.game.add.sprite(this.game.world.centerX, this.game.world.centerY, 'fondo-mainmenu');
-            this.imgMainMenu.anchor.setTo(0.5, 0.5);
+            var spr_bg = this.game.add.graphics(0, 0);
+            spr_bg.beginFill('#000', 1);
+            spr_bg.drawRect(0, 0, this.game.width, this.game.height);
+            spr_bg.alpha = 0;
+            spr_bg.endFill();
 
-            // Agregar botones
-            this.btnComenzar = this.game.add.button(this.game.width / 2, 200, 'btn-comenzar', this.comenzarClick, this);
-            this.btnComenzar.anchor.setTo(0.5, 0.5);
-            this.btnPuntajes = this.game.add.button(this.game.width / 2, 258, 'btn-puntajes', this.puntajesClick, this);
-            this.btnPuntajes.anchor.setTo(0.5, 0.5);
-            this.btnCreditos = this.game.add.button(this.game.width / 2, 316, 'btn-creditos', this.creditosClick, this);
-            this.btnCreditos.anchor.setTo(0.5, 0.5);
+            var fadeIn = this.game.add.tween(spr_bg).to({
+                alpha: 1
+            }, 500, Phaser.Easing.Linear.None, true);
 
+            fadeIn.onComplete.addOnce(function() {
+                imgMain = this.game.add.sprite(this.game.world.centerX, this.game.world.centerY, 'fondo-mainmenu');
+                imgMain.anchor.setTo(0.5, 0.5);
+
+                // Agregar botones
+                btnStart = this.game.add.button(this.game.width / 2, 200, 'btn-start', this.comenzarClick, this, 2, 0, 1);
+                btnStart.anchor.setTo(0.5, 0.5);
+                btnHiScores = this.game.add.button(this.game.width / 2, 258, 'btn-hiscores', this.puntajesClick, this, 2, 0, 1);
+                btnHiScores.anchor.setTo(0.5, 0.5);
+                btnCredits = this.game.add.button(this.game.width / 2, 316, 'btn-credits', this.creditosClick, this, 2, 0, 1);
+                btnCredits.anchor.setTo(0.5, 0.5);
+                    
+                var spr_bg = this.game.add.graphics(0, 0);
+                spr_bg.beginFill('#000', 1);
+                spr_bg.drawRect(0, 0, this.game.width, this.game.height);
+                spr_bg.alpha = 1;
+                spr_bg.endFill();
+
+                var fadeOut = this.game.add.tween(spr_bg).to({
+                    alpha: 0
+                }, 500, Phaser.Easing.Linear.None, true);
+
+            }, this);
         }, this);
 
+        theme = this.game.add.audio('theme', 1, true);
+        clickSound = this.game.add.audio('click', 1, false);
 
-        theme = this.game.add.audio('theme');
         theme.play();
     },
-    update: function() {
 
-    },
     comenzarClick: function() {
+        // Sonar click
+        clickSound.play();
         // Handler del botón comenzar juego
         // Iniciar el estado Game
         this.game.state.start('play');
         theme.stop();
-    }
+    },
+
+    puntajesClick: function() {
+        // Sonar click
+        clickSound.play();
+    },
+
+    creditosClick: function() {
+        // Sonar click
+        clickSound.play();
+    },
 
 };
 
@@ -1356,11 +1393,15 @@ var Player = require('../prefabs/player');
 var Npc = require('../prefabs/npc');
 
 var PANEL_FADE_TIME = 100;
+var fadeColor = '#000';
+var battleintroSound;
 
 // Inicio de play
 function Play() {}
 
 Play.prototype = {
+
+    teleported: false,
 
     create: function() {
         // Set bounds
@@ -1417,9 +1458,59 @@ Play.prototype = {
     },
 
     // Ir a un room diferente
-    goToRoom: function(room, monsterType) {
+    goToRoom: function(room, fade, monsterType) {
         this.saveLocation();
-        this.game.state.start(room, true, false, monsterType);
+        if (monsterType !== undefined)
+            battleintroSound.play();
+
+        if (fade)
+            this.fadeToRoom(room, monsterType);
+        else
+            this.game.state.start(room, true, false, monsterType);
+    },
+
+    fadeToRoom: function(nextState, monsterType) {
+        // Si se entra a batalla, el fade es blanco, caso contrario es negro
+        (monsterType === undefined) ? (fadeColor = '#000') : (fadeColor = '#fff');
+
+        console.log("fading with color " + fadeColor);
+
+        var spr_bg = this.game.add.graphics(0, 0);
+        spr_bg.beginFill(fadeColor, 1);
+        spr_bg.drawRect(0, 0, this.game.width, this.game.height);
+        spr_bg.alpha = 0;
+        spr_bg.endFill();
+
+        var fadeIn = this.game.add.tween(spr_bg).to({ 
+            alpha: 1 
+        }, 500, Phaser.Easing.Linear.None, true);
+
+        fadeIn.onComplete.add(function() {
+            this.changeState(nextState, monsterType);
+        }, this)
+
+    },
+
+    changeState: function (nextState, monsterType) {
+        this.game.state.start(nextState, true, false, monsterType);
+        this.fadeOut();
+    },
+
+    fadeOut: function() {        
+        var spr_bg = this.game.add.graphics(0, 0);
+        spr_bg.beginFill(fadeColor, 1);
+        spr_bg.drawRect(0, 0, this.game.width, this.game.height);
+        spr_bg.alpha = 1;
+        spr_bg.endFill();
+
+        var fadeOut = this.game.add.tween(spr_bg).to({
+            alpha: 0
+        }, 500, Phaser.Easing.Linear.None);
+
+        fadeOut.onComplete.add(function() {
+            console.log("mu");
+        }, this);
+        fadeOut.start();
     },
 
     // Guardar ubicación actual de jugador
@@ -1453,7 +1544,7 @@ function RmFirstScene() {
 
     this.create = function() {
         this.startEvent(1);
-    }
+    },
 
     this.startEvent = function(iDialogue, answer) {
         switch (iDialogue) {
@@ -1507,7 +1598,7 @@ function RmFirstScene() {
                 this.createDialogue(["Starting game..."]);
                 this.game.input.onDown.addOnce(function() {
                     this.destroyDialogue();
-                    this.goToRoom('rmFirstScenario');
+                    this.goToRoom('rmFirstScenario', true);
                 }, this);
                 break;
         }
@@ -1538,6 +1629,8 @@ function RmFirstScenario() {
         // Música
         fieldSong = this.game.add.audio('field', 1, true);
         fieldSong.play('', 0, 1, true);
+
+        battleintroSound = this.game.add.audio('battle-intro', 1, false);
 
         // Tileset
         map = this.game.add.tilemap('firstScene-map');
@@ -1592,7 +1685,9 @@ function RmFirstScenario() {
         // Cámara
         this.game.camera.follow(this.player);
 
-    }
+        console.log("pre mu");
+
+    },
 
     this.update = function() {
         // object1, object2, collideCallback, processCallback, callbackContext
@@ -1602,18 +1697,21 @@ function RmFirstScenario() {
         }, null, this);
 
         this.game.physics.arcade.collide(this.player, NPCs.monsters, function(obj1, obj2) {
-            obj2.body.velocity.x = 0;
-            obj2.body.velocity.y = 0;
-            // Si choca con monstruo, entrar en combate
-            this.goToRoom('battle', obj2.monsterType);
+            // obj2.body.velocity.x = 0;
+            // obj2.body.velocity.y = 0;
+            if (!this.teleported) {
+                this.teleported = true;
+                // Si choca con monstruo, entrar en combate
+                this.goToRoom('battle', true, obj2.monsterType);    
+            }
         }, null, this);
 
         this.game.physics.arcade.collide(this.player, layerUnder);
-    }
+    },
 
     this.render = function() {
         //this.game.debug.spriteInfo(this.player, 32, 32);
-    }
+    },
 
     this.createCollisions = function() {
         // Setear sprites con los que se colisiona
@@ -1673,7 +1771,7 @@ function RmFirstScenario() {
                 this.createDialogue(msg, question1, question2);
 
                 this.dialogueBox.txtQuestion1.events.onInputDown.addOnce(function() {
-                    this.goToRoom('battle');
+                    this.goToRoom('battle', true);
                 }, this);
                 this.dialogueBox.txtQuestion2.events.onInputDown.addOnce(function() {
                     console.log("Pendiente: Arreglar el salto que ocurre en los diálogos.");
@@ -1715,10 +1813,10 @@ Preload.prototype = {
 
         // UI
         this.load.image('logojackal', 'assets/img/logo-jackal.png');  // this = Pickartist
-        this.load.image('fondo-mainmenu', 'assets/img/background-mainmenu.png');
-        this.load.image('btn-comenzar', 'assets/img/btn-comenzar.png');
-        this.load.image('btn-puntajes', 'assets/img/btn-puntajes.png');
-        this.load.image('btn-creditos', 'assets/img/btn-creditos.png');
+        this.load.image('fondo-mainmenu', 'assets/img/background-mainmenu.jpg');
+        this.load.spritesheet('btn-start', 'assets/img/btn-start.png', 256, 48);
+        this.load.spritesheet('btn-hiscores', 'assets/img/btn-hiscores.png', 256, 48);
+        this.load.spritesheet('btn-credits', 'assets/img/btn-credits.png', 256, 48);
         this.load.image('panel', 'assets/img/panel-dialog.png');
         this.load.image('panel-top', 'assets/img/ui-paneltop.png');
         this.load.image('panel-bottom', 'assets/img/ui-panelbottom.png');
