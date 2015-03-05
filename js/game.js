@@ -63,7 +63,8 @@ var BattleEnemy = function(game, x, y, enemyType) {
                 attack: 4,
                 speed: 2,
                 level: 2,
-                xp: 6
+                xp: 6,
+                score: 25
             };
             this.attacks = {
             	// Nombre ataque: [fuerza, probabilidad de uso]
@@ -76,12 +77,13 @@ var BattleEnemy = function(game, x, y, enemyType) {
         case 'dark-knight':
             // Stats del enemigo
             this.stats = {
-                maxHp: 64,
-                hp: 64,
+                maxHp: 42,
+                hp: 42,
                 attack: 12,
                 speed: 3,
                 level: 6,
-                xp: 30
+                xp: 30,
+                score: 95
             };
             this.attacks = {
                 // Nombre ataque: [fuerza, probabilidad de uso]
@@ -94,12 +96,13 @@ var BattleEnemy = function(game, x, y, enemyType) {
         case 'dragon-knight':
             // Stats del enemigo
             this.stats = {
-                maxHp: 162,
-                hp: 162,
+                maxHp: 98,
+                hp: 98,
                 attack: 20,
                 speed: 3,
                 level: 10,
-                xp: 96
+                xp: 96,
+                score: 255
             };
             this.attacks = {
                 // Nombre ataque: [fuerza, probabilidad de uso]
@@ -294,7 +297,9 @@ BattlePlayer.prototype.action = function(enemy) {
             this.animations.play('player_idle');
 
             (this.attackType == 'correct') && (enemy.stats.hp -= this.damageDone);
-            (enemy.stats.hp <= 0) && (enemy.kill()); 
+            if (enemy.stats.hp <= 0) {
+               enemy.kill();
+            }
 
     		this.done = true;
         }, this);
@@ -520,6 +525,8 @@ module.exports = FacePlayer;
 },{}],6:[function(require,module,exports){
 'use strict';
 
+var walkSpeed = 60;
+
 var Npc = function(game, x, y) {
 
     Phaser.Sprite.call(this, game, x, y, 'people');
@@ -546,13 +553,10 @@ var Npc = function(game, x, y) {
 
     // Diálogo del NPC
     this.dialogue = "Hey...";
-
 };
 
 Npc.prototype = Object.create(Phaser.Sprite.prototype);
 Npc.prototype.constructor = Npc;
-
-Npc.prototype.update = function() {};
 
 // NPC Hob
 Npc.Hob = function(game, x, y, frame) {
@@ -570,15 +574,23 @@ Npc.Hob = function(game, x, y, frame) {
 
 };
 
-Npc.Hob.prototype = Object.create(Npc.prototype);
-Npc.Hob.prototype.constructor = Npc;
+Npc.Hob.prototype = Object.create(Phaser.Sprite.prototype);
+Npc.Hob.prototype.constructor = Npc.Hob;
 
 // NPC Monster
-Npc.Monster = function(game, x, y, monsterType) {
+Npc.Monster = function(game, x, y, monsterType, group, index, playerTarget) {
 
     Npc.call(this, game, x, y);
     this.loadTexture('sprites1');
     this.monsterType = monsterType;
+    this.group = group;
+    this.index = index;
+    this.target = playerTarget;
+
+    this.stepCounter = 0;
+    this.stepMax = 80;
+    this.targetX = 0;
+    this.targetY = 0;
 
     switch (this.monsterType) {
         case 'skeleton':
@@ -609,8 +621,58 @@ Npc.Monster = function(game, x, y, monsterType) {
 
 };
 
-Npc.Monster.prototype = Object.create(Npc.prototype);
-Npc.Monster.prototype.constructor = Npc;
+Npc.Monster.prototype = Object.create(Phaser.Sprite.prototype);
+Npc.Monster.prototype.constructor = Npc.Monster;
+
+Npc.Monster.prototype.update = function() {
+
+    this.stepCounter++;
+
+    // Si ha llegado a su target, debe detenerse
+    if (Phaser.Rectangle.contains(this.body, this.targetX, this.targetY)){
+        this.body.velocity.setTo(0, 0);
+        this.animations.stop(null, true);
+    }
+    
+    if (this.stepCounter == this.stepMax) {
+        this.stepCounter = 0;
+        // Sólo si se está en cámara
+        if (this.x >= this.game.camera.x 
+            && this.x <= (this.game.camera.x + this.game.camera.width)
+            && this.y >= this.game.camera.y
+            && this.y <= (this.game.camera.y + this.game.camera.height))
+        {
+            // Moverse hacia el jugador sólo si se está cerca del mismo, caso contrario, moverse aleatoriamente
+            if (this.game.physics.arcade.distanceBetween(this, this.target) <= 150) {
+                this.targetX = this.target.x;
+                this.targetY = this.target.y;
+                this.game.physics.arcade.moveToXY(this, this.targetX, this.targetY, walkSpeed);
+            } else {
+
+                this.targetX = Math.floor(Math.random() * (this.game.camera.width + this.game.camera.x)) + this.game.camera.x;
+                this.targetY = Math.floor(Math.random() * (this.game.camera.height + this.game.camera.y)) + this.game.camera.y;
+                this.game.physics.arcade.moveToXY(this, this.targetX, this.targetY, walkSpeed);
+            }
+
+            var angleBetween = this.game.physics.arcade.angleToXY(this, this.targetX, this.targetY);
+            switch (true) {
+                case (angleBetween >= -0.75 && angleBetween <= 0.75):
+                    this.animations.play('monster_walk_right');
+                    break;
+                case (angleBetween >= 0.76 && angleBetween <= 2.25):
+                    this.animations.play('monster_walk_down');
+                    break;
+                case (angleBetween >= 2.26 || angleBetween <= -2.26):
+                    this.animations.play('monster_walk_left');
+                    break;
+                case (angleBetween >= -2.25 && angleBetween <= -0.76):
+                    this.animations.play('monster_walk_up');
+                    break;
+            }
+        }
+    }
+    
+};
 
 module.exports = Npc;
 },{}],7:[function(require,module,exports){
@@ -719,7 +781,7 @@ Player.prototype.update = function() {
                 case (angleBetween >= -2.25 && angleBetween <= -0.76):
                 	this.animations.play('player_walk_up');
                     break;
-            };
+            }
         }
 
         // Input con teclado
@@ -782,7 +844,6 @@ var DialogueBox = require('../prefabs/dialogue-box');
 
 var battleSong;
 var victorySong;
-var battleintroSound;
 var correctSound;
 var incorrectSound;
 var monsterSound;
@@ -793,7 +854,7 @@ var actionQueue = [];
 function Battle() {}
 
 Battle.prototype = {
-    init: function(monsterType) {
+    init: function(monsterType, targetNPC) {
         this.monsterType = typeof monsterType !== 'undefined' ? monsterType : 'skeleton';
     },
     create: function() {
@@ -801,11 +862,9 @@ Battle.prototype = {
         this.game.world.setBounds(0, 0, 600, 400);
 
         // Sonidos y Música
-        battleintroSound = this.game.add.audio('battle-intro', 1, false);
         correctSound = this.game.add.audio('correct', 0.5, false);
         incorrectSound = this.game.add.audio('incorrect', 1, false);
         monsterSound = this.game.add.audio('monster', 1, false);
-        battleintroSound.play();
 
         battleSong = this.game.add.audio('battle', 1, true);
         victorySong = this.game.add.audio('victory', 1, false);
@@ -1106,6 +1165,10 @@ Battle.prototype = {
             while (this.game.player.experience >= this.game.player.xpCap) {
                 this.leveledUp = true;
                 this.game.player.level++;
+                this.game.player.stats.maxHp += Math.floor(this.game.player.stats.maxHp * 30/100);
+                this.game.player.stats.hp = this.game.player.stats.maxHp;
+                this.game.player.stats.attack += Math.floor(this.game.player.stats.attack * 30/100);
+                this.game.player.stats.defense += Math.floor(this.game.player.stats.defense * 30/100);
                 this.game.player.xpCap *= 2;
             }
 
@@ -1149,6 +1212,7 @@ Battle.prototype = {
         for (var i = 0; i < this.enemies.length; i++)
             if (!this.enemies[i].exists) {
                 this.xpGained += this.enemies[i].stats.xp;
+                this.game.player.score += this.enemies[i].stats.score;
                 this.enemies.splice(i, 1);
                 // Si no quedan enemigos, ganar combate
                 if (this.enemies.length <= 0) {
@@ -1395,13 +1459,14 @@ var Npc = require('../prefabs/npc');
 var PANEL_FADE_TIME = 100;
 var fadeColor = '#000';
 var battleintroSound;
+var TRANSITION_DURATION = 500;
 
 // Inicio de play
 function Play() {}
 
 Play.prototype = {
 
-    teleported: false,
+    teleported: false,  // Switch para indicar que ya se ha iniciado el teleport
 
     create: function() {
         // Set bounds
@@ -1458,40 +1523,43 @@ Play.prototype = {
     },
 
     // Ir a un room diferente
-    goToRoom: function(room, fade, monsterType) {
+    goToRoom: function(room, fade, monsterType, targetNPC) {
         this.saveLocation();
+
         if (monsterType !== undefined)
             battleintroSound.play();
 
-        if (fade)
-            this.fadeToRoom(room, monsterType);
-        else
+        if (fade) {
+            this.fadeToRoom(room, monsterType, targetNPC);
+        } else {
             this.game.state.start(room, true, false, monsterType);
+        }
     },
 
-    fadeToRoom: function(nextState, monsterType) {
+    fadeToRoom: function(nextState, monsterType, targetNPC) {
         // Si se entra a batalla, el fade es blanco, caso contrario es negro
-        (monsterType === undefined) ? (fadeColor = '#000') : (fadeColor = '#fff');
+        (monsterType === undefined) ? (fadeColor = '#000000') : (fadeColor = '#ffffff');
 
         console.log("fading with color " + fadeColor);
 
         var spr_bg = this.game.add.graphics(0, 0);
+        spr_bg.fixedToCamera = true;
         spr_bg.beginFill(fadeColor, 1);
-        spr_bg.drawRect(0, 0, this.game.width, this.game.height);
+        spr_bg.drawRect(0, 0, this.game.camera.width, this.game.camera.height);
         spr_bg.alpha = 0;
         spr_bg.endFill();
 
         var fadeIn = this.game.add.tween(spr_bg).to({ 
             alpha: 1 
-        }, 500, Phaser.Easing.Linear.None, true);
+        }, TRANSITION_DURATION, Phaser.Easing.Linear.None, true);
 
         fadeIn.onComplete.add(function() {
-            this.changeState(nextState, monsterType);
+            this.changeState(nextState, monsterType, targetNPC);
         }, this)
 
     },
 
-    changeState: function (nextState, monsterType) {
+    changeState: function (nextState, monsterType, targetNPC) {
         this.game.state.start(nextState, true, false, monsterType);
         this.fadeOut();
     },
@@ -1619,8 +1687,11 @@ function RmFirstScenario() {
     var layerGround;
     var layerUnder;
     var layerOver;
-    var map;
     var mapOver;
+
+    var UI;
+    var levelText;
+    var scoreText;
 
     var NPCs;
 
@@ -1633,12 +1704,14 @@ function RmFirstScenario() {
         battleintroSound = this.game.add.audio('battle-intro', 1, false);
 
         // Tileset
-        map = this.game.add.tilemap('firstScene-map');
-        map.addTilesetImage('mountain01');
+        if (this.map === undefined){
+            this.map = this.game.add.tilemap('firstScene-map');
+            this.map.addTilesetImage('mountain01');
+        }
         
         // Crear capas
-        layerGround = map.createLayer('Ground');
-        layerUnder = map.createLayer('Under');
+        layerGround = this.map.createLayer('Ground');
+        layerUnder = this.map.createLayer('Under');
 
         // Crear colisiones
         this.createCollisions();
@@ -1660,14 +1733,14 @@ function RmFirstScenario() {
 
         // Crear los npcs
         // Monstruos
-        map.objects.Enemigo1.forEach(function(element){
-            NPCs.monsters.add(new Npc.Monster(this.game, element.x, element.y, 'skeleton'));
+        this.map.objects.Enemigo1.forEach(function(element, index){
+            NPCs.monsters.add(new Npc.Monster(this.game, element.x, element.y, 'skeleton', 'Enemigo1', index, this.player));
         }, this);
-        map.objects.Enemigo2.forEach(function(element){
-            NPCs.monsters.add(new Npc.Monster(this.game, element.x, element.y, 'dark-knight'));
+        this.map.objects.Enemigo2.forEach(function(element, index){
+            NPCs.monsters.add(new Npc.Monster(this.game, element.x, element.y, 'dark-knight', 'Enemigo2', index, this.player));
         }, this);
-        map.objects.Enemigo3.forEach(function(element){
-            NPCs.monsters.add(new Npc.Monster(this.game, element.x, element.y, 'dragon-knight'));
+        this.map.objects.Enemigo3.forEach(function(element, index){
+            NPCs.monsters.add(new Npc.Monster(this.game, element.x, element.y, 'dragon-knight', 'Enemigo3', index, this.player));
         }, this);
 
         // NPC hob
@@ -1682,31 +1755,46 @@ function RmFirstScenario() {
         mapOver.addTilesetImage('mountain01');
         layerOver = mapOver.createLayer('Over');
 
+        // UI
+        UI = this.game.add.group();
+        levelText = this.game.add.text(0, 0, "Level: ", this.game.paragraphFont, UI);
+        scoreText = this.game.add.text(0, 20, "Score: ", this.game.paragraphFont, UI);
+
         // Cámara
         this.game.camera.follow(this.player);
 
-        console.log("pre mu");
-
+        // Volver a poner en falso el switch de teleportación
+        this.teleported = false;
     },
 
     this.update = function() {
+
+        // Reposicionar UI
+        UI.x = this.game.camera.view.x + this.game.camera.view.width - 100;
+        UI.y = this.game.camera.view.y + 10;
+        levelText.setText("Level " + this.game.player.level); 
+        scoreText.setText("Score: " + this.game.player.score);
+
         // object1, object2, collideCallback, processCallback, callbackContext
         this.game.physics.arcade.collide(this.player, NPCs, function(obj1, obj2) {
-            obj2.body.velocity.x = 0;
-            obj2.body.velocity.y = 0;
+            obj2.body.velocity.setTo (0,0);
         }, null, this);
 
         this.game.physics.arcade.collide(this.player, NPCs.monsters, function(obj1, obj2) {
-            // obj2.body.velocity.x = 0;
-            // obj2.body.velocity.y = 0;
+            obj2.body.velocity.setTo (0,0);
+            // Si choca con monstruo, entrar en combate
             if (!this.teleported) {
+                // Eliminar NPC con el que se acaba de colisionar
+                this.map.objects[obj2.group].splice(obj2.index, 1);
+                // Poner switch de teleportación en On
                 this.teleported = true;
-                // Si choca con monstruo, entrar en combate
-                this.goToRoom('battle', true, obj2.monsterType);    
+                this.goToRoom('battle', true, obj2.monsterType, obj2);    
             }
         }, null, this);
 
         this.game.physics.arcade.collide(this.player, layerUnder);
+        this.game.physics.arcade.collide(NPCs.monsters, layerUnder);
+
     },
 
     this.render = function() {
@@ -1715,35 +1803,35 @@ function RmFirstScenario() {
 
     this.createCollisions = function() {
         // Setear sprites con los que se colisiona
-        map.setCollisionBetween(3, 4, true, layerUnder);
-        map.setCollisionBetween(8, 9, true, layerUnder);
-        map.setCollision(18, true, layerUnder);
-        map.setCollisionBetween(21, 26, true, layerUnder);
-        map.setCollision(33, true, layerUnder);
-        map.setCollision(38, true, layerUnder);
-        map.setCollision(49, true, layerUnder);
-        map.setCollision(54, true, layerUnder);
-        map.setCollisionBetween(65, 66, true, layerUnder);
-        map.setCollisionBetween(69, 74, true, layerUnder);
-        map.setCollisionBetween(81, 90, true, layerUnder);
-        map.setCollisionBetween(98, 101, true, layerUnder);
-        map.setCollisionBetween(104, 105, true, layerUnder);
-        map.setCollision(113, true, layerUnder);
-        map.setCollision(116, true, layerUnder);
-        map.setCollision(161, true, layerUnder);
-        map.setCollision(164, true, layerUnder);
-        map.setCollision(177, true, layerUnder);
-        map.setCollision(180, true, layerUnder);
-        map.setCollision(193, true, layerUnder);
-        map.setCollision(196, true, layerUnder);
-        map.setCollision(204, true, layerUnder);
-        map.setCollision(206, true, layerUnder);
-        map.setCollisionBetween(209, 212, true, layerUnder);
-        map.setCollisionBetween(220, 222, true, layerUnder);
-        map.setCollisionBetween(225, 231, true, layerUnder);
-        map.setCollisionBetween(234, 240, true, layerUnder);
-        map.setCollisionBetween(242, 243, true, layerUnder);
-        map.setCollisionBetween(244, 256, true, layerUnder);
+        this.map.setCollisionBetween(3, 4, true, layerUnder);
+        this.map.setCollisionBetween(8, 9, true, layerUnder);
+        this.map.setCollision(18, true, layerUnder);
+        this.map.setCollisionBetween(21, 26, true, layerUnder);
+        this.map.setCollision(33, true, layerUnder);
+        this.map.setCollision(38, true, layerUnder);
+        this.map.setCollision(49, true, layerUnder);
+        this.map.setCollision(54, true, layerUnder);
+        this.map.setCollisionBetween(65, 66, true, layerUnder);
+        this.map.setCollisionBetween(69, 74, true, layerUnder);
+        this.map.setCollisionBetween(81, 90, true, layerUnder);
+        this.map.setCollisionBetween(98, 101, true, layerUnder);
+        this.map.setCollisionBetween(104, 105, true, layerUnder);
+        this.map.setCollision(113, true, layerUnder);
+        this.map.setCollision(116, true, layerUnder);
+        this.map.setCollision(161, true, layerUnder);
+        this.map.setCollision(164, true, layerUnder);
+        this.map.setCollision(177, true, layerUnder);
+        this.map.setCollision(180, true, layerUnder);
+        this.map.setCollision(193, true, layerUnder);
+        this.map.setCollision(196, true, layerUnder);
+        this.map.setCollision(204, true, layerUnder);
+        this.map.setCollision(206, true, layerUnder);
+        this.map.setCollisionBetween(209, 212, true, layerUnder);
+        this.map.setCollisionBetween(220, 222, true, layerUnder);
+        this.map.setCollisionBetween(225, 231, true, layerUnder);
+        this.map.setCollisionBetween(234, 240, true, layerUnder);
+        this.map.setCollisionBetween(242, 243, true, layerUnder);
+        this.map.setCollisionBetween(244, 256, true, layerUnder);
     },
 
     this.guard1Dialogue = function(iDialogue, answer) {
