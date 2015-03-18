@@ -176,14 +176,39 @@ BattleEnemy.prototype.action = function(player, playerSprite) {
 		// Ejecutar animación de ataque enemigo
         this.attackSound.play();
 
-        player.stats.hp -= this.damageDone;
-        (player.stats.hp <= 0) && (player.stats.hp = 0);
+        // Mostrar animación de daño en jugador
+        var prevPlayerAnim = playerSprite.animations.currentAnim.name;
+        playerSprite.animations.play('player_struck');
 
-		this.done = true;	// Indicar que ha terminado de ejecutarse
-		this.battleTimer.resume();	// Resumir temporizador de este enemigo
+        // Al finalizar animación de daño
+        var playerStruckTimer = this.game.time.events.add(250, function() {
+            playerSprite.animations.play(prevPlayerAnim);
 
-    	//console.log(this + " ataca con " + attackName + " y causa " + this.damageDone + " de daño.");
+            var dmgString = this.damageDone;
 
+            // Mostrar daño causado
+            var dmgText = this.game.add.text(playerSprite.x, playerSprite.y - playerSprite.height * 0.5, dmgString, this.game.battleFont1);
+            dmgText.anchor.set(0.5);
+            var dmgTextMovement = this.game.add.tween(dmgText).to({ 
+                y: dmgText.y - 3 
+            }, 40, Phaser.Easing.Linear.None)
+            .to({ y: playerSprite.y - playerSprite.height * 0.2 }, 200, Phaser.Easing.Bounce.Out)
+            .start();
+
+            // Al finalizar movimiento de texto
+            dmgTextMovement.onComplete.addOnce(function() {
+                var dmgTextTimer = this.game.time.events.add(300, function() {
+                    dmgText.destroy();
+
+                    player.stats.hp -= this.damageDone;
+                    (player.stats.hp <= 0) && (player.stats.hp = 0);
+
+                    this.done = true;   // Indicar que ha terminado de ejecutarse
+                    this.battleTimer.resume();  // Resumir temporizador de este enemigo
+        
+                }, this);
+            }, this);
+        }, this);
 	}, this);	
 
 };
@@ -239,9 +264,16 @@ BattlePlayer.prototype = Object.create(Phaser.Sprite.prototype);
 BattlePlayer.prototype.constructor = BattlePlayer;
 
 BattlePlayer.prototype.update = function() {
+    
+    if (this.returnedToStart && this.doneDamaging)
+        this.done = true;
+
 };
 
 BattlePlayer.prototype.action = function(enemy) {
+    // Acciones de batalla
+    this.returnedToStart = false;
+    this.doneDamaging = false;
 
     this.executing = true; // Indicar que se está ejecutando la acción del jugador
     this.done = false; // Indicar que todavía no ha terminado de ejecutarse
@@ -271,19 +303,73 @@ BattlePlayer.prototype.action = function(enemy) {
     var y = this.y;
 
     this.animations.play('player_advance');
+
+    // Mover player hacia enemigo
     var moveToEnemy = this.game.add.tween(this).to({
         x: enemy.x + 50,
         y: enemy.y
     }, 500, Phaser.Easing.Linear.None, true);
 
+    // Ejecutar animación de ataque
     moveToEnemy.onComplete.addOnce(function() {
         this.animations.play('player_attack');
+
+        if (this.attackType == 'correct') {
+            // Flashear sprite
+            var mask = this.game.add.sprite(enemy.x, enemy.y, enemy.key);
+            mask.anchor.setTo(0.5, 1);
+            mask.alpha = 0;
+
+            var flash = new PIXI.ColorMatrixFilter();
+            flash.matrix = [1,1,1,1,
+                            1,1,1,1,
+                            1,1,1,1,
+                            0,0,0,1];
+            mask.filters = [flash];
+
+            var flashIn = this.game.add.tween(mask).to({
+                alpha: 0.75
+            }, 125, Phaser.Easing.Exponential.In, true, 0, 0, true);
+
+            // Destruir al terminar flash
+            flashIn.onComplete.addOnce(function () {
+                mask.destroy();
+            }, this);
+        }
+
         this.attackType == 'correct' ? attackSound.play() : missSound.play();
     }, this);
 
+    // Al terminar animación de ataque
     this.animations.getAnimation('player_attack').onComplete.addOnce(function() {
-    	// Mostrar animación de ataque
-    	
+
+        var dmgString = '';
+        if (this.attackType == 'correct')
+            dmgString = this.damageDone;
+        else
+            dmgString = 'Miss';
+
+        // Mostrar daño causado
+        var dmgText = this.game.add.text(enemy.x, enemy.y - enemy.height * 0.75, dmgString, this.game.battleFont1);
+        dmgText.anchor.set(0.5);
+        var dmgTextMovement = this.game.add.tween(dmgText).to({ 
+            y: dmgText.y - 5 
+        }, 40, Phaser.Easing.Linear.None)
+        .to({ y: enemy.y - enemy.height * 0.3 }, 200, Phaser.Easing.Bounce.Out)
+        .start();
+
+        dmgTextMovement.onComplete.addOnce(function() {
+            var dmgTextTimer = this.game.time.events.add(300, function() {
+                dmgText.destroy();
+
+                (this.attackType == 'correct') && (enemy.stats.hp -= this.damageDone);
+                if (enemy.stats.hp <= 0) {
+                   enemy.kill();
+                }
+                this.doneDamaging = true;
+            }, this);
+        }, this);
+
 
         // Mover de vuelta al lugar inicial
         this.animations.play('player_retreat');
@@ -295,18 +381,13 @@ BattlePlayer.prototype.action = function(enemy) {
 		// Al finalizar animación de ataque
         moveToStart.onComplete.addOnce(function() {
             this.animations.play('player_idle');
-
-            (this.attackType == 'correct') && (enemy.stats.hp -= this.damageDone);
-            if (enemy.stats.hp <= 0) {
-               enemy.kill();
-            }
-
-    		this.done = true;
+            this.returnedToStart = true;
         }, this);
+
     }, this);
 
-
 };
+
 
 module.exports = BattlePlayer;
 },{}],4:[function(require,module,exports){
@@ -1538,7 +1619,7 @@ Play.prototype = {
 
     fadeToRoom: function(nextState, monsterType, targetNPC) {
         // Si se entra a batalla, el fade es blanco, caso contrario es negro
-        (monsterType === undefined) ? (fadeColor = '#000000') : (fadeColor = '#ffffff');
+        (monsterType === undefined) ? (fadeColor = '0x000000') : (fadeColor = '0xffffff');
 
         console.log("fading with color " + fadeColor);
 
@@ -1951,6 +2032,9 @@ Preload.prototype = {
         // Scripts
         this.game.load.script('webfont', '//ajax.googleapis.com/ajax/libs/webfont/1.4.7/webfont.js');
 
+        // Filters
+        this.game.load.script('filter', 'js/ColorMatrixFilter.js');
+
         // Configurar fuente
         this.game.paragraphFont = {
             font: "19px Molengo",
@@ -1958,6 +2042,14 @@ Preload.prototype = {
             align: "left",
             stroke: "black",
             strokeThickness: 1
+        };
+
+        this.game.battleFont1 = {
+            font: "bold 19px Molengo",
+            fill: "#ffffff",
+            align: "left",
+            stroke: "black",
+            strokeThickness: 4
         };
 
         // Cargar preguntas de batalla
