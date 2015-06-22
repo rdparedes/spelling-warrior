@@ -1,0 +1,94 @@
+<!doctype html>
+<!--[if lt IE 7]>      <html class="lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html lang="es"> <!--<![endif]-->
+<head>
+	<title>Spelling Warrior - Jackal Games</title>
+	<link rel="stylesheet"  type="text/css" href="css/normalize.css"></style>
+	<link rel="stylesheet"  type="text/css" href="css/style.css"></style>
+	<script type="text/javascript" src="js/jquery.min.js"></script>
+</head>
+<body>
+	<section class="container">
+		<h1 class="center-text">Spelling Warrior - Configuración</h1>
+		<div class="panel">
+			<div class="panel-body">
+				<h2 class="page-header">Lista de preguntas</h2>
+				<div class="inner-offset">
+					<ul id="questions">
+						<!--
+						<li class="question">
+							<div class="form-group">
+								<label class="col-3">Pregunta:</label>
+								<div class="col-7">
+									Texto de pregunta
+								</div>
+							</div>
+							<div class="form-group">
+								<label class="col-3">Respuestas:</label>
+								<div class="col-7">
+									<ol>
+										<li>Respuesta 1</li>
+										<li>Respuesta 2</li>
+										<li>Respuesta 3</li>
+										<li>Respuesta 4</li>	
+									</ol>
+								</div>
+							</div>
+							<div class="form-group">
+								<label class="col-3">Respuesta correcta:</label>
+								<div class="col-7">
+									1
+								</div>
+							</div>							
+						</li>
+						-->
+					</ul>
+				</div>
+			</div>
+		</div>
+	</section>
+	<footer class="container center-text">
+		<p>© 2015 Jackal Games.</p>
+	</footer>
+
+	<script type="text/javascript">
+
+		jQuery(document).ready(function($) {
+			$.getJSON( "js/questions.json", function( data ) {
+				$.each(data.question, function(index, obj) {
+					var html = "<li class='question'>" +
+							"<div class='form-group'>" +
+								"<label class='col-3'>Pregunta:</label>" +
+								"<div class='col-7'>" +
+									obj.text +
+								"</div>" +
+							"</div>" +
+							"<div class='form-group'>" +
+								"<label class='col-3'>Respuestas:</label>" +
+								"<div class='col-7'>" +
+									"<ol id='answers" + index +"'>" +
+									"</ol>" +
+								"</div>" +
+							"</div>" +
+							"<div class='form-group'>" +
+								"<label class='col-3'>Respuesta correcta:</label>" +
+								"<div class='col-7'>" +
+									obj.correct +
+								"</div>" +
+							"</div>" +					
+						"</li>";
+					$("#questions").append(html);
+					
+					$.each(obj.answers, function(i, val) {
+			 			$("#answers"+index).append("<li>" + val + "</li>");
+					});
+					
+				});
+			});
+		}); 
+
+	</script>
+</body>
+</html>
