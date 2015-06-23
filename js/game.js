@@ -1708,7 +1708,7 @@ function RmFirstScene() {
 
     this.startEvent = function(iDialogue, answer) {
         switch (iDialogue) {
-            case 1:
+            /*case 1:
                 var msg = [
                     "First and foremost, what's your name?"
                 ];
@@ -1718,6 +1718,7 @@ function RmFirstScene() {
                 
                 //this.createTextBox('textName');
                 break;
+                */
             case 1:
                 var msg = [
                     "Are you a student or a teacher?"
