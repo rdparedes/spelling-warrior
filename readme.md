@@ -1,6 +1,8 @@
 
 # Spelling Warrior
 
+[Click here to play](https://rdparedes.github.io/)
+
 ![screenshot](sw-capture.PNG)
 
 Spelling Warrior is an 'english learning' game inspired by old school 16 bits RPGs.
