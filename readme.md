@@ -1,7 +1,7 @@
 
 # Spelling Warrior
 
-![screenshot](sw-capture.png)
+![screenshot](sw-capture.PNG)
 
 Spelling Warrior is an 'english learning' game inspired by old school 16 bits RPGs.
 
