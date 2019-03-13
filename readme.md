@@ -1,7 +1,7 @@
 
 # Spelling Warrior
 
-[Click here to play](https://rdparedes.github.io/)
+[Click here to play](https://rdparedes.github.io/sp-warrior)
 
 ![screenshot](sw-capture.PNG)
 
